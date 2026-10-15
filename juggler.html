@@ -254,7 +254,8 @@ details[open] > summary::after { content: "閉じる"; }
           <button class="btn small" type="button" data-act="ptUndo">最後の点を消す</button>
           <button class="btn small" type="button" data-act="ptClear">グラフをクリア</button>
         </div>
-        <p class="note">差枚数を入れて確定すると(キーボードを閉じるか、＋/−を押すと)、そのときの総回転数でグラフに点が1つ増えます。横軸は総回転数、縦軸は差枚数です。</p>
+        <p class="note">投入枚数と差枚数は、入力しなければ推定値を表示します。総回転数・BIG・REG・小役カウンターから計算します(ぶどう8枚、チェリー2枚、ピエロ10枚、BIG+240枚、REG+96枚、リプレイは投入が戻る。ベルとハズレは払出なし)。小役を100G以上数えたときは数えた確率、それ未満は平均値(ぶどう1/5.95、チェリー1/33、リプレイ1/7.3、ピエロ1/1092)を使います。正確な数字ではなく、目安です。ホールの実際の数字を入れると、そちらを優先します。</p>
+        <p class="note">グラフは、推定のときは100Gごとに点が自動で増えます。実際の差枚数を入れて確定すると(キーボードを閉じるか、＋/−を押すと)、そのときの総回転数で点が1つ増えます。横軸は総回転数、縦軸は差枚数です。</p>
       </div>
     </details>
   </section>
@@ -435,7 +436,7 @@ details[open] > summary::after { content: "閉じる"; }
       return {
         id: String(m.id || newId()), name: String(m.name || '台').slice(0, 20), mach: mid, preset: pr,
         inv: num(m.inv, 9999999), na: num(m.na, 9999999), neg: !!m.neg,
-        pts: (Array.isArray(m.pts) ? m.pts : []).slice(-200).map(function (q) { return [num(q && q[0]), Math.max(-9999999, Math.min(9999999, parseInt(q && q[1], 10) || 0))]; }),
+        pts: (Array.isArray(m.pts) ? m.pts : []).slice(-200).map(function (q) { var o = [num(q && q[0]), Math.max(-9999999, Math.min(9999999, parseInt(q && q[1], 10) || 0))]; if (q && q[2]) o.push(1); return o; }),
         date: /^\d{4}-\d\d-\d\d$/.test(m.date) ? m.date : today(), shop: String(m.shop || '').slice(0, 30), no: String(m.no || '').slice(0, 10),
         games: num(m.games), big: num(m.big), reg: num(m.reg),
         grapeGames: num(m.grapeGames), grape: num(m.grape), cherry: num(m.cherry),
@@ -464,7 +465,7 @@ details[open] > summary::after { content: "閉じる"; }
 
   function cur() { return state.machines.find(function (m) { return m.id === state.cur; }) || state.machines[0]; }
   function saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } }
-  function touch() { state.updated = Date.now(); saveLocal(); queue(); }
+  function touch() { try { autoPoint(cur()); } catch (e) { /* ignore */ } state.updated = Date.now(); saveLocal(); queue(); }
 
   /* ---------- rendering ---------- */
   function renderChips() {
@@ -585,7 +586,27 @@ details[open] > summary::after { content: "閉じる"; }
     touch(); renderCounts(); renderResult();
   }
 
-  function netOf(m) { return (m.neg ? -1 : 1) * m.na; }
+  /* 推定: 数えた小役の確率(100G以上数えたとき)、なければ平均値から、払出と実質投入枚数を計算する。目安であり正確ではない。 */
+  var EST = { grape: [1 / 5.95, 8], cherry: [1 / 33, 2], clown: [1 / 1092, 10], replay: [1 / 7.3, 3] };
+  var BIG_GAIN = 240, REG_GAIN = 96;
+  function est(m) {
+    if (m.games <= 0) return { inv: 0, net: 0, ok: false, obs: false };
+    var obs = m.grapeGames >= 100, n = {};
+    Object.keys(EST).forEach(function (k) { n[k] = (obs ? m[k] / m.grapeGames : EST[k][0]) * m.games; });
+    var inv = 3 * (m.games - n.replay);
+    var pay = n.grape * EST.grape[1] + n.cherry * EST.cherry[1] + n.clown * EST.clown[1];
+    return { inv: Math.round(inv), net: Math.round(pay - inv + m.big * BIG_GAIN + m.reg * REG_GAIN), ok: true, obs: obs };
+  }
+  function manualNet(m) { return (m.neg ? -1 : 1) * m.na; }
+  function effInv(m) { return m.inv > 0 ? m.inv : est(m).inv; }
+  function netOf(m) { return m.na > 0 ? manualNet(m) : est(m).net; }
+  function autoPoint(m) {
+    if (m.na > 0 || m.games <= 0) return;
+    var e = est(m), last = m.pts[m.pts.length - 1];
+    if (last && last[2] && last[0] > m.games - 100) { last[0] = m.games; last[1] = e.net; }
+    else if (!last || last[0] <= m.games - 100) m.pts.push([m.games, e.net, 1]);
+    if (m.pts.length > 200) m.pts = m.pts.slice(-200);
+  }
   function chartData(m) {
     var pts = [[0, 0]].concat(m.pts), xmax = 500, ymin = 0, ymax = 0;
     pts.forEach(function (q) { if (q[0] > xmax) xmax = q[0]; if (q[1] < ymin) ymin = q[1]; if (q[1] > ymax) ymax = q[1]; });
@@ -595,19 +616,25 @@ details[open] > summary::after { content: "閉じる"; }
     return { pts: pts, xmax: xmax, ymin: ymin, ymax: ymax };
   }
   function addPoint(m) {
-    if (!m.na && !m.inv) return;
-    var d = netOf(m), last = m.pts[m.pts.length - 1];
-    if (last && last[0] === m.games) last[1] = d; else m.pts.push([m.games, d]);
+    if (!m.na) return;
+    var d = manualNet(m), last = m.pts[m.pts.length - 1];
+    if (last && last[0] === m.games && !last[2]) last[1] = d; else m.pts.push([m.games, d]);
     if (m.pts.length > 200) m.pts = m.pts.slice(-200);
   }
   function renderMedals() {
-    var m = cur(), n = netOf(m);
+    var m = cur(), e = est(m), n = netOf(m), inv = effInv(m);
     setIfIdle($('inv'), m.inv ? fmt(m.inv) : '');
     setIfIdle($('net'), m.na ? fmt(m.na) : '');
-    $('netSign').textContent = m.neg ? '−' : '＋';
+    $('inv').placeholder = e.ok ? '推定 ' + fmt(e.inv) : '';
+    $('net').placeholder = e.ok ? '推定 ' + fmt(Math.abs(e.net)) : '';
+    $('netSign').textContent = (m.na > 0 ? m.neg : e.net < 0) ? '−' : '＋';
     var h = '';
-    if (m.inv > 0) h += '<span>出玉率<b>' + ((m.inv + n) / m.inv * 100).toFixed(1) + '%</b></span><span>払出<b>' + fmt(m.inv + n) + '枚</b></span>';
-    if (m.inv > 0 && m.games > 0) h += '<span>1G平均<b>' + (n / m.games).toFixed(2) + '枚</b></span>';
+    if (inv > 0) {
+      h += '<span>投入<b>' + fmt(inv) + '枚</b></span><span>差枚<b>' + (n > 0 ? '+' : '') + fmt(n) + '枚</b></span>';
+      h += '<span>出玉率<b>' + ((inv + n) / inv * 100).toFixed(1) + '%</b></span>';
+      var tags = [m.inv > 0 ? '投入は入力値' : '投入は推定', m.na > 0 ? '差枚は入力値' : '差枚は推定'];
+      h += '<span style="flex-basis:100%;font-size:12px;color:var(--muted)">' + tags.join('・') + (e.ok && (m.inv <= 0 || m.na <= 0) ? (e.obs ? '(小役は数えた確率で計算)' : '(小役は平均値で計算)') : '') + '</span>';
+    }
     $('medSums').innerHTML = h;
     $('medSums').style.display = h ? '' : 'none';
     var c = chartData(m), W = 340, H = 180, L = 52, R = 10, T = 10, B = 24;
@@ -619,7 +646,7 @@ details[open] > summary::after { content: "閉じる"; }
     svg += '<text x="' + L + '" y="' + (H - 6) + '">0G</text><text x="' + (W - R) + '" y="' + (H - 6) + '" text-anchor="end">' + fmt(c.xmax) + 'G</text>';
     svg += '<polyline class="ln" points="' + c.pts.map(function (q) { return X(q[0]).toFixed(1) + ',' + Y(q[1]).toFixed(1); }).join(' ') + '"/>';
     c.pts.forEach(function (q, i) { svg += '<circle class="dot" cx="' + X(q[0]).toFixed(1) + '" cy="' + Y(q[1]).toFixed(1) + '" r="' + (i === c.pts.length - 1 ? 4 : 2.5) + '"/>'; });
-    if (c.pts.length === 1) svg += '<text x="' + (W / 2) + '" y="' + (H / 2) + '" text-anchor="middle">差枚数を入れると点が増えます</text>';
+    if (c.pts.length === 1) svg += '<text x="' + (W / 2) + '" y="' + (H / 2) + '" text-anchor="middle">総回転数を入れると点が増えます</text>';
     $('chart').innerHTML = svg;
   }
 
@@ -628,7 +655,7 @@ details[open] > summary::after { content: "閉じる"; }
     for (var i = 1; i < 6; i++) if (r.p[i] > r.p[best]) best = i;
     var h = { id: m.id, date: m.date, shop: m.shop, no: m.no, mach: m.mach, name: m.name, top: r.hasData && !r.error ? best + 1 : 0, pct: r.hasData && !r.error ? Math.round(r.p[best] * 100) : 0, saved: Date.now() };
     ['games', 'big', 'reg', 'grapeGames', 'grape', 'cherry', 'bell', 'clown', 'replay', 'miss'].forEach(function (k) { h[k] = m[k]; });
-    h.inv = m.inv; h.net = netOf(m);
+    h.inv = effInv(m); h.net = netOf(m);
     state.history = state.history.filter(function (x) { return x.id !== h.id; });
     state.history.push(h);
     if (state.history.length > 300) state.history = state.history.slice(-300);
@@ -723,8 +750,10 @@ details[open] > summary::after { content: "閉じる"; }
     y += 40; t('REG  ' + m.reg + '回  ' + rate(m.reg, m.games), P, y, 24, INK);
     y += 40; t('ペカり回数(合算値)  ' + (m.big + m.reg) + '回  ' + rate(m.big + m.reg, m.games), P, y, 24, INK);
     var net = netOf(m);
-    if (m.inv > 0 || m.na > 0) {
-      y += 40; t('投入 ' + fmt(m.inv) + '枚   差枚 ' + (net > 0 ? '+' : '') + fmt(net) + '枚' + (m.inv > 0 ? '   出玉率 ' + ((m.inv + net) / m.inv * 100).toFixed(1) + '%' : ''), P, y, 24, INK);
+    var einv = effInv(m), isEst = m.inv <= 0 || m.na <= 0;
+    if (einv > 0) {
+      y += 40; t('投入 ' + fmt(einv) + '枚   差枚 ' + (net > 0 ? '+' : '') + fmt(net) + '枚   出玉率 ' + ((einv + net) / einv * 100).toFixed(1) + '%', P, y, 24, INK);
+      if (isEst) { y += 28; t('※投入・差枚の一部または全部は、回転数と小役からの推定値です', P, y, 16, MUT); }
     }
     if (m.pts.length) {
       var cd = chartData(m), gx = P + 70, gw = W - 2 * P - 80, gy = y + 30, gh = 200;
