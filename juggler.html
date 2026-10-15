@@ -1,10 +1,4 @@
-<!doctype html>
-<html lang="ja">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
-<title>マイジャグ6判別</title>
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style><title>ジャグラー判別</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -143,20 +137,18 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
 .src th:first-child, .src td:first-child { text-align: left; }
 .src .wrap { overflow-x: auto; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
-</style>
-</head>
-<body>
+</style></head><body>
 
 <main class="app" id="app">
   <header class="head">
-    <h1>マイジャグ6 判別</h1>
+    <h1>ジャグラー判別</h1>
     <span class="sync" id="sync" role="status"></span>
   </header>
 
   <div class="chips" id="chips" role="tablist" aria-label="台の切り替え"></div>
 
   <section class="card" aria-live="polite" aria-label="判別結果">
-    <h2>設定の可能性</h2>
+    <h2 id="rtitle">設定の可能性</h2>
     <p class="verdict" id="verdict"></p>
     <div class="rows" id="rows"></div>
     <div class="sums" id="sums"></div>
@@ -201,7 +193,7 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
       <button class="btn small" type="button" id="undoTap" disabled>1つ取り消す</button>
       <button class="btn small" type="button" data-act="grapeSync">総回転数と同じにする</button>
     </div>
-    <p class="note">判別に使うのは、ぶどうだけです。ほかの小役は、数えて記録するだけです。通常時のゲームを数える使い方を想定しています。</p>
+    <p class="note" id="tnote"></p>
   </section>
 
   <section class="card">
@@ -211,12 +203,11 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
         <label>台の名前
           <input type="text" id="mname" autocomplete="off" maxlength="20">
         </label>
+        <label>機種
+          <select id="mach"></select>
+        </label>
         <label>ぶどう確率の見積もり
-          <select id="preset">
-            <option value="A">推定A(前作からの逆算・ジャグラーズネット)</option>
-            <option value="B">推定B(ホール実戦値・ジャグラートピックス)</option>
-            <option value="off">ぶどうは判別に使わない</option>
-          </select>
+          <select id="preset"></select>
         </label>
         <div class="btns">
           <button class="btn small danger" type="button" id="reset">この台の数字をゼロに戻す</button>
@@ -231,9 +222,7 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
       <summary>使っている数値と出典</summary>
       <div class="src" style="padding-top:8px">
         <div class="wrap"><table id="spec"></table></div>
-        <div>BIG・REG・機械割はメーカー公表値です(複数のサイトで一致を確認、設定2のREGだけ1/385.5と1/385.8の表記ゆれ。ここでは1/385.5を使用)。</div>
-        <div>ぶどう確率はまだ公式発表がなく、推定値です。設定ごとの差が小さいため、判別への影響は小さめです。</div>
-        <div>導入日は2026年10月5日です。公式のぶどう・チェリー確率が出たら、数値を差し替えます。</div>
+        <div id="specNotes" style="display:grid;gap:6px"></div>
         <div>結果は「設定がいくつか」の断定ではなく、入力した数字から計算した可能性の目安です。</div>
       </div>
     </details>
@@ -245,27 +234,64 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
   'use strict';
 
   /*MATH*/
-  var BIG = [273.1, 270.8, 266.4, 254.0, 240.1, 229.1];
-  var REG = [409.6, 385.5, 336.1, 290.0, 268.6, 229.1];
-  var PAYOUT = [97.0, 98.0, 99.9, 102.8, 105.3, 109.4];
-  var GRAPE = {
-    A: [5.90, 5.86, 5.83, 5.83, 5.83, 5.79],
-    B: [5.95, 5.86, 5.82, 5.79, 5.75, 5.65]
-  };
+  var MACHINES = [
+    { id: 'mj6', name: 'マイジャグラーVI',
+      big: [273.1, 270.8, 266.4, 254.0, 240.1, 229.1], reg: [409.6, 385.5, 336.1, 290.0, 268.6, 229.1],
+      payout: [97.0, 98.0, 99.9, 102.8, 105.3, 109.4], def: 'A',
+      grape: { A: { label: '推定A(前作からの逆算・ジャグラーズネット)', short: 'ぶどうA', v: [5.90, 5.86, 5.83, 5.83, 5.83, 5.79] },
+               B: { label: '推定B(ホール実戦値・ジャグラートピックス)', short: 'ぶどうB', v: [5.95, 5.86, 5.82, 5.79, 5.75, 5.65] } },
+      notes: ['BIG・REG・機械割はメーカー公表値です(複数のサイトで一致を確認、設定2のREGだけ1/385.5と1/385.8の表記ゆれ。ここでは1/385.5を使用)。',
+              'ぶどう確率はまだ公式発表がなく、推定値です。設定ごとの差が小さいため、判別への影響は小さめです。'] },
+    { id: 'mj5', name: 'マイジャグラーV',
+      big: [273.1, 270.8, 266.4, 254.0, 240.1, 229.1], reg: [409.6, 385.5, 336.1, 290.0, 268.6, 229.1],
+      payout: [97.0, 98.0, 99.9, 102.8, 105.3, 109.4], def: 'A',
+      grape: { A: { label: '参考値A(スロベース)', short: 'ぶどうA', v: [5.90, 5.88, 5.82, 5.81, 5.79, 5.69] },
+               B: { label: '参考値B(ラクパチ)', short: 'ぶどうB', v: [5.90, 5.85, 5.80, 5.78, 5.76, 5.66] } },
+      notes: ['BIG・REG・機械割は複数のサイトで一致を確認しました(マイジャグラーVIと同じ数値)。',
+              'ぶどう確率は2つのサイトで少し数値が違い、公式値ではありません。判別への影響は小さめです。'] },
+    { id: 'mr', name: 'ミスタージャグラー',
+      big: [268.6, 267.5, 260.1, 249.2, 240.9, 237.4], reg: [374.5, 354.2, 331.0, 291.3, 257.0, 237.4],
+      payout: [97.0, 98.0, 99.8, 102.7, 105.5, 107.3], def: 'off',
+      grape: { A: { label: '参考値(ラクパチ・未確認)', short: 'ぶどう', v: [6.29, 6.22, 6.15, 6.09, 6.02, 5.96] } },
+      notes: ['BIG・REG・機械割は2つのサイトで一致を確認しました。',
+              'ぶどう確率は1つのサイトの数値だけで、確認できていません。そのため、初期設定では判別に使いません。使う場合は台の管理で切り替えてください。'] },
+    { id: 'neo', name: 'ネオアイムジャグラーEX',
+      big: [273.1, 269.7, 269.7, 259.0, 259.0, 255.0], reg: [439.8, 399.6, 331.0, 315.1, 255.0, 255.0],
+      payout: [97.0, 98.0, 99.5, 101.1, 103.3, 105.5], def: 'off',
+      grape: { A: { label: '参考値(ラクパチ・未確認)', short: 'ぶどう', v: [6.02, 6.02, 6.02, 6.02, 6.02, 5.78] } },
+      notes: ['BIG・REG・機械割は公表値です。6号機のアイムジャグラーも同じスペックです。機械割は設定1・4・6だけ2つのサイトで確認でき、ほかは1つのサイトの数値です。',
+              'BIGは設定2と3、設定4と5が同じ確率のため、その差は判別できません。ぶどうは1つのサイトの数値だけで未確認です。初期設定では判別に使いません。'] },
+    { id: 'gs', name: 'ジャグラーガールズSS',
+      big: [273.1, 270.8, 260.1, 250.1, 243.6, 226.0], reg: [381.0, 350.5, 316.6, 281.3, 270.8, 252.1],
+      payout: [97.0, 97.9, 99.9, 102.1, 104.0, 107.5], def: 'off',
+      grape: { A: { label: '参考値(ラクパチ・未確認)', short: 'ぶどう', v: [5.98, 5.98, 5.98, 5.98, 5.88, 5.83] } },
+      notes: ['BIG・REG・機械割は2つのサイトで一致を確認しました。',
+              'ぶどう確率は出典によって数値が食い違っており、確認できていません。初期設定では判別に使いません。'] },
+    { id: 'gg3', name: 'ゴーゴージャグラー3',
+      big: [259.0, 258.0, 257.0, 254.0, 247.3, 234.9], reg: [354.2, 332.7, 306.2, 268.6, 247.3, 234.9],
+      payout: [97.2, 98.2, 99.4, 101.6, 103.8, 106.5], def: 'off', grape: {},
+      notes: ['BIG・REG・機械割は2つのサイトで一致を確認しました。',
+              'ぶどう確率の信頼できる数値が見つからなかったため、BIGとREGだけで計算します。小役カウンターは記録用になります。'] }
+  ];
+  function machineOf(id) {
+    for (var i = 0; i < MACHINES.length; i++) if (MACHINES[i].id === id) return MACHINES[i];
+    return MACHINES[0];
+  }
 
-  function posterior(m, preset) {
+  function posterior(m, spec, preset) {
     var N = m.games, b = m.big, r = m.reg;
     var out = { p: [1 / 6, 1 / 6, 1 / 6, 1 / 6, 1 / 6, 1 / 6], hasData: false, grapeUsed: false, error: '' };
     if (N <= 0) return out;
     if (b + r > N) { out.error = 'BIGとREGの合計が、総回転数より多くなっています。'; return out; }
-    var useGrape = preset !== 'off' && GRAPE[preset] && m.grapeGames > 0;
+    var G = spec.grape[preset];
+    var useGrape = preset !== 'off' && !!G && m.grapeGames > 0;
     if (useGrape && m.grape > m.grapeGames) { out.error = 'ぶどうの回数が、数えたゲーム数より多くなっています。'; return out; }
     var ll = [];
     for (var s = 0; s < 6; s++) {
-      var pb = 1 / BIG[s], pr = 1 / REG[s];
+      var pb = 1 / spec.big[s], pr = 1 / spec.reg[s];
       var v = b * Math.log(pb) + r * Math.log(pr) + (N - b - r) * Math.log(1 - pb - pr);
       if (useGrape) {
-        var pg = 1 / GRAPE[preset][s];
+        var pg = 1 / G.v[s];
         v += m.grape * Math.log(pg) + (m.grapeGames - m.grape) * Math.log(1 - pg);
       }
       ll.push(v);
@@ -279,7 +305,7 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
   }
   /*ENDMATH*/
 
-  var LS_KEY = 'mj6-hantei-v1';
+  var LS_KEY = 'mj6-hantei-v1'; /* 旧版と同じキーのまま、機種対応に拡張 */
   function $(id) { return document.getElementById(id); }
   function clone(x) { return JSON.parse(JSON.stringify(x)); }
   function newId() { return 'm_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
@@ -290,7 +316,7 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
   }
   function fmt(n) { return Number(n).toLocaleString('ja-JP'); }
 
-  function blank(name) { return { id: newId(), name: name, games: 0, big: 0, reg: 0, grapeGames: 0, grape: 0, cherry: 0, bell: 0, clown: 0, replay: 0, miss: 0 }; }
+  function blank(name, mach) { return { id: newId(), name: name, mach: mach || 'mj6', preset: machineOf(mach || 'mj6').def, games: 0, big: 0, reg: 0, grapeGames: 0, grape: 0, cherry: 0, bell: 0, clown: 0, replay: 0, miss: 0 }; }
   function sample() {
     var m = blank('入力例');
     m.games = 3200; m.big = 12; m.reg = 13; m.grapeGames = 2900; m.grape = 495; m.cherry = 80; m.replay = 395; m.miss = 1930;
@@ -299,15 +325,17 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
   function normalize(st) {
     if (!st || !Array.isArray(st.machines) || !st.machines.length) return null;
     st.machines = st.machines.map(function (m) {
+      var mid = machineOf(m.mach).id, sp = machineOf(mid);
+      var pr = m.preset !== undefined ? m.preset : (mid === 'mj6' ? st.preset : sp.def);
+      if (pr !== 'off' && !sp.grape[pr]) pr = sp.def;
       return {
-        id: String(m.id || newId()), name: String(m.name || '台').slice(0, 20),
+        id: String(m.id || newId()), name: String(m.name || '台').slice(0, 20), mach: mid, preset: pr,
         games: num(m.games), big: num(m.big), reg: num(m.reg),
         grapeGames: num(m.grapeGames), grape: num(m.grape), cherry: num(m.cherry),
         bell: num(m.bell), clown: num(m.clown), replay: num(m.replay), miss: num(m.miss)
       };
     });
     if (!st.machines.some(function (m) { return m.id === st.cur; })) st.cur = st.machines[0].id;
-    if (['A', 'B', 'off'].indexOf(st.preset) < 0) st.preset = 'A';
     st.updated = Number(st.updated) || 0;
     return st;
   }
@@ -317,7 +345,7 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
     var raw = localStorage.getItem(LS_KEY);
     if (raw) state = normalize(JSON.parse(raw));
   } catch (e) { /* storage unavailable */ }
-  if (!state) { var s0 = sample(); state = { machines: [s0], cur: s0.id, preset: 'A', updated: 0 }; }
+  if (!state) { var s0 = sample(); state = { machines: [s0], cur: s0.id, updated: 0 }; }
 
   function cur() { return state.machines.find(function (m) { return m.id === state.cur; }) || state.machines[0]; }
   function saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } }
@@ -337,7 +365,8 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
 
   function renderResult() {
     var m = cur();
-    var r = posterior(m, state.preset);
+    var sp = machineOf(m.mach), r = posterior(m, sp, m.preset);
+    $('rtitle').textContent = '設定の可能性(' + sp.name + ')';
     var verdict = $('verdict'), rows = $('rows'), sums = $('sums'), rnote = $('rnote');
     var best = 0;
     for (var i = 1; i < 6; i++) if (r.p[i] > r.p[best]) best = i;
@@ -379,8 +408,11 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
     $('bigVal').textContent = m.big;
     $('regVal').textContent = m.reg;
     renderTiles(m);
-    $('bigRate').textContent = m.big && m.games ? '1/' + (m.games / m.big).toFixed(1) + '(設定1〜6: 1/273〜1/229)' : '設定1〜6: 1/273.1〜1/229.1';
-    $('regRate').textContent = m.reg && m.games ? '1/' + (m.games / m.reg).toFixed(1) + '(設定1〜6: 1/410〜1/229)' : '設定1〜6: 1/409.6〜1/229.1';
+    var sp = machineOf(m.mach);
+    var bR = '設定1〜6: 1/' + sp.big[0].toFixed(0) + '〜1/' + sp.big[5].toFixed(0);
+    var rR = '設定1〜6: 1/' + sp.reg[0].toFixed(0) + '〜1/' + sp.reg[5].toFixed(0);
+    $('bigRate').textContent = m.big && m.games ? '1/' + (m.games / m.big).toFixed(1) + '(' + bR + ')' : bR;
+    $('regRate').textContent = m.reg && m.games ? '1/' + (m.games / m.reg).toFixed(1) + '(' + rR + ')' : rR;
   }
 
   var KINDS = [
@@ -399,13 +431,18 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
       var h = '';
       KINDS.forEach(function (x) {
         h += '<button class="tile' + (x.used ? ' used' : '') + '" type="button" data-kind="' + x.k + '" aria-label="' + x.label + 'を1回数える">' +
-          '<span class="tl">' + x.label + (x.used ? '<span class="tag">判別用</span>' : '') + '</span>' +
+          '<span class="tl">' + x.label + (x.used ? '<span class="tag" hidden>判別用</span>' : '') + '</span>' +
           '<span class="tv">0</span><span class="tr">1/—</span></button>';
       });
       box.innerHTML = h;
     }
     var tiles = box.querySelectorAll('.tile');
+    var gUsed = m.preset !== 'off' && !!machineOf(m.mach).grape[m.preset];
+    $('tnote').textContent = gUsed
+      ? '判別に使うのは、ぶどうだけです。ほかの小役は、数えて記録するだけです。通常時のゲームを数える使い方を想定しています。'
+      : 'この台では、ぶどうを判別に使っていません。小役は、数えて記録するだけです。判別は総回転数・BIG・REGで計算します。';
     KINDS.forEach(function (x, i) {
+      if (x.used) { tiles[i].classList.toggle('used', gUsed); tiles[i].querySelector('.tag').hidden = !gUsed; }
       tiles[i].querySelector('.tv').textContent = m[x.k];
       tiles[i].querySelector('.tr').textContent = m[x.k] && m.grapeGames ? '1/' + (m.grapeGames / m[x.k]).toFixed(x.d) : '1/—';
     });
@@ -429,17 +466,37 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
   function renderTools() {
     var m = cur();
     setIfIdle($('mname'), m.name);
-    $('preset').value = state.preset;
+    var sp = machineOf(m.mach);
+    var mh = '';
+    MACHINES.forEach(function (x) { mh += '<option value="' + x.id + '">' + x.name + '</option>'; });
+    if ($('mach').innerHTML !== mh) $('mach').innerHTML = mh;
+    $('mach').value = sp.id;
+    var ph = '';
+    Object.keys(sp.grape).forEach(function (k) { ph += '<option value="' + k + '">' + sp.grape[k].label + '</option>'; });
+    ph += '<option value="off">ぶどうは判別に使わない</option>';
+    $('preset').innerHTML = ph;
+    $('preset').value = m.preset;
+    $('preset').disabled = !Object.keys(sp.grape).length;
+    renderSpec();
   }
 
   function renderAll() { renderChips(); renderCounts(); renderResult(); renderTools(); }
 
   function renderSpec() {
-    var h = '<tr><th>設定</th><th>BIG</th><th>REG</th><th>機械割</th><th>ぶどうA</th><th>ぶどうB</th></tr>';
-    for (var s = 0; s < 6; s++) {
-      h += '<tr><td>' + (s + 1) + '</td><td>1/' + BIG[s].toFixed(1) + '</td><td>1/' + REG[s].toFixed(1) + '</td><td>' + PAYOUT[s].toFixed(1) + '%</td><td>1/' + GRAPE.A[s].toFixed(2) + '</td><td>1/' + GRAPE.B[s].toFixed(2) + '</td></tr>';
+    var sp = machineOf(cur().mach), keys = Object.keys(sp.grape);
+    var h = '<tr><th>設定</th><th>BIG</th><th>REG</th><th>合算</th><th>機械割</th>';
+    keys.forEach(function (k) { h += '<th>' + sp.grape[k].short + '</th>'; });
+    h += '</tr>';
+    for (var i = 0; i < 6; i++) {
+      var tot = 1 / (1 / sp.big[i] + 1 / sp.reg[i]);
+      h += '<tr><td>' + (i + 1) + '</td><td>1/' + sp.big[i].toFixed(1) + '</td><td>1/' + sp.reg[i].toFixed(1) + '</td><td>1/' + tot.toFixed(1) + '</td><td>' + sp.payout[i].toFixed(1) + '%</td>';
+      keys.forEach(function (k) { h += '<td>1/' + sp.grape[k].v[i].toFixed(2) + '</td>'; });
+      h += '</tr>';
     }
     $('spec').innerHTML = h;
+    var nh = '<div style="font-weight:700">' + sp.name + '</div>';
+    sp.notes.concat(['結果は「設定がいくつか」の断定ではなく、入力した数字から計算した可能性の目安です。']).forEach(function (t) { nh += '<div>' + t + '</div>'; });
+    $('specNotes').innerHTML = nh;
   }
 
   /* ---------- events ---------- */
@@ -462,7 +519,7 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
     if (t.classList.contains('tile')) { tap(t.dataset.kind); return; }
     if (t.id === 'undoTap') { undoTap(); return; }
     if (t.id === 'addMachine') {
-      var nm = blank((state.machines.length + 1) + '台目');
+      var nm = blank((state.machines.length + 1) + '台目', m.mach);
       state.machines.push(nm); state.cur = nm.id;
       touch(); renderAll();
       return;
@@ -483,7 +540,7 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
         m.games = 0; m.big = 0; m.reg = 0; m.grapeGames = 0; m.grape = 0; m.cherry = 0; m.bell = 0; m.clown = 0; m.replay = 0; m.miss = 0; taps[m.id] = [];
       } else {
         state.machines = state.machines.filter(function (x) { return x.id !== m.id; });
-        if (!state.machines.length) state.machines.push(blank('1台目'));
+        if (!state.machines.length) state.machines.push(blank('1台目', m.mach));
         state.cur = state.machines[0].id;
       }
       touch(); renderAll();
@@ -500,7 +557,11 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
     cur().name = e.target.value.slice(0, 20) || '台';
     touch(); renderChips();
   });
-  $('preset').addEventListener('change', function (e) { state.preset = e.target.value; touch(); renderResult(); });
+  $('preset').addEventListener('change', function (e) { cur().preset = e.target.value; touch(); renderCounts(); renderResult(); });
+  $('mach').addEventListener('change', function (e) {
+    var m = cur(); m.mach = e.target.value; m.preset = machineOf(m.mach).def;
+    touch(); renderAll();
+  });
 
   /* ---------- sync (private to each signed-in viewer; works offline-only elsewhere) ---------- */
   var col = null, dirty = false, flushT = null, flushing = false;
@@ -516,7 +577,7 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
     flushing = true; dirty = false;
     var retry = false;
     try {
-      await col.doc('state').set({ v: 1, updated: state.updated, cur: state.cur, preset: state.preset, machines: state.machines });
+      await col.doc('state').set({ v: 1, updated: state.updated, cur: state.cur, machines: state.machines });
       setSync('');
     } catch (e) {
       setSync('同期できません');
@@ -549,11 +610,8 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
     } catch (e) { col = null; }
   }
 
-  renderSpec();
   renderAll();
   initCloud();
 })();
 </script>
-
-</body>
-</html>
+</body></html>
