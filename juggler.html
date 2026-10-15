@@ -131,6 +131,16 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
 .tools label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
 .tools input[type="text"], .tools select { min-height: 44px; padding: 0 10px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; color: var(--ink); width: 100%; }
 .btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.info { display: grid; grid-template-columns: 1fr 5.5em; gap: 8px; }
+.info label { display: grid; gap: 3px; font-size: 12px; color: var(--muted); min-width: 0; }
+.info label.wide { grid-column: 1 / -1; }
+.info input { min-height: 42px; padding: 0 10px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; color: var(--ink); width: 100%; min-width: 0; }
+.info .acts { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.hist { display: grid; gap: 0; margin-top: 8px; }
+.hrow { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.hrow .h1 { font-weight: 700; }
+.hrow .h2 { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.hrow .res { color: var(--led); font-weight: 700; }
 .src { font-size: 12px; color: var(--muted); display: grid; gap: 6px; }
 .src table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
 .src th, .src td { padding: 4px 6px; border-bottom: 1px solid var(--line); text-align: right; }
@@ -146,6 +156,18 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
   </header>
 
   <div class="chips" id="chips" role="tablist" aria-label="台の切り替え"></div>
+
+  <section class="card" aria-label="台の情報">
+    <div class="info">
+      <label>日付<input type="date" id="mdate"></label>
+      <label>台番<input type="text" id="mno" inputmode="numeric" autocomplete="off" maxlength="10" placeholder="例 123"></label>
+      <label class="wide">店舗名<input type="text" id="mshop" autocomplete="off" maxlength="30" placeholder="例 ○○ホール"></label>
+      <div class="acts">
+        <button class="btn small" type="button" data-act="saveRec" id="saveRec">この台を記録に保存</button>
+        <span class="sub" style="font-size:12px;color:var(--muted)">日付が過ぎた台は、翌日に記録へ自動保存して消えます</span>
+      </div>
+    </div>
+  </section>
 
   <section class="card" aria-live="polite" aria-label="判別結果">
     <h2 id="rtitle">設定の可能性</h2>
@@ -213,6 +235,19 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
           <button class="btn small danger" type="button" id="reset">この台の数字をゼロに戻す</button>
           <button class="btn small danger" type="button" id="remove">この台を削除</button>
         </div>
+      </div>
+    </details>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary id="histSum">保存した記録</summary>
+      <div class="tools">
+        <div class="btns">
+          <button class="btn small" type="button" data-act="csv">CSVで書き出す</button>
+          <button class="btn small danger" type="button" data-act="hclear" id="hclear">記録をすべて消す</button>
+        </div>
+        <div class="hist" id="hist"></div>
       </div>
     </details>
   </section>
@@ -331,12 +366,9 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
   }
   function fmt(n) { return Number(n).toLocaleString('ja-JP'); }
 
-  function blank(name, mach) { return { id: newId(), name: name, mach: mach || 'mj6', preset: machineOf(mach || 'mj6').def, games: 0, big: 0, reg: 0, grapeGames: 0, grape: 0, cherry: 0, bell: 0, clown: 0, replay: 0, miss: 0 }; }
-  function sample() {
-    var m = blank('入力例');
-    m.games = 3200; m.big = 12; m.reg = 13; m.grapeGames = 2900; m.grape = 495; m.cherry = 80; m.replay = 395; m.miss = 1930;
-    return m;
-  }
+  function today() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+  function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function blank(name, mach, shop) { return { id: newId(), name: name, date: today(), shop: shop || '', no: '', mach: mach || 'mj6', preset: machineOf(mach || 'mj6').def, games: 0, big: 0, reg: 0, grapeGames: 0, grape: 0, cherry: 0, bell: 0, clown: 0, replay: 0, miss: 0 }; }
   function normalize(st) {
     if (!st || !Array.isArray(st.machines) || !st.machines.length) return null;
     st.machines = st.machines.map(function (m) {
@@ -345,12 +377,20 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
       if (pr !== 'off' && !sp.grape[pr]) pr = sp.def;
       return {
         id: String(m.id || newId()), name: String(m.name || '台').slice(0, 20), mach: mid, preset: pr,
+        date: /^\d{4}-\d\d-\d\d$/.test(m.date) ? m.date : today(), shop: String(m.shop || '').slice(0, 30), no: String(m.no || '').slice(0, 10),
         games: num(m.games), big: num(m.big), reg: num(m.reg),
         grapeGames: num(m.grapeGames), grape: num(m.grape), cherry: num(m.cherry),
         bell: num(m.bell), clown: num(m.clown), replay: num(m.replay), miss: num(m.miss)
       };
     });
+    st.machines = st.machines.filter(function (m) { return !(m.name === '入力例' && m.games === 3200 && m.big === 12 && m.reg === 13); });
+    if (!st.machines.length) st.machines.push(blank('1台目'));
     if (!st.machines.some(function (m) { return m.id === st.cur; })) st.cur = st.machines[0].id;
+    st.history = (Array.isArray(st.history) ? st.history : []).slice(-300).map(function (h) {
+      var o = { id: String(h.id || newId()), date: String(h.date || '').slice(0, 10), shop: String(h.shop || '').slice(0, 30), no: String(h.no || '').slice(0, 10), mach: machineOf(h.mach).id, name: String(h.name || '').slice(0, 20), top: num(h.top, 6), pct: num(h.pct, 100), saved: Number(h.saved) || 0 };
+      ['games', 'big', 'reg', 'grapeGames', 'grape', 'cherry', 'bell', 'clown', 'replay', 'miss'].forEach(function (k) { o[k] = num(h[k]); });
+      return o;
+    });
     st.updated = Number(st.updated) || 0;
     return st;
   }
@@ -360,7 +400,7 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
     var raw = localStorage.getItem(LS_KEY);
     if (raw) state = normalize(JSON.parse(raw));
   } catch (e) { /* storage unavailable */ }
-  if (!state) { var s0 = sample(); state = { machines: [s0], cur: s0.id, updated: 0 }; }
+  if (!state) { var s0 = blank('1台目'); state = { machines: [s0], cur: s0.id, history: [], updated: 0 }; }
 
   function cur() { return state.machines.find(function (m) { return m.id === state.cur; }) || state.machines[0]; }
   function saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } }
@@ -375,7 +415,7 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
     h += '<button class="chip add" type="button" id="addMachine">＋ 台を追加</button>';
     $('chips').innerHTML = h;
     var chips = $('chips').querySelectorAll('.chip[data-id]');
-    state.machines.forEach(function (m, i) { chips[i].textContent = m.name; });
+    state.machines.forEach(function (m, i) { chips[i].textContent = m.name + (m.no ? ' ' + m.no + '番' : ''); });
   }
 
   function renderResult() {
@@ -478,9 +518,71 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
     touch(); renderCounts(); renderResult();
   }
 
+  function archive(m) {
+    var sp = machineOf(m.mach), r = posterior(m, sp, m.preset), best = 0;
+    for (var i = 1; i < 6; i++) if (r.p[i] > r.p[best]) best = i;
+    var h = { id: m.id, date: m.date, shop: m.shop, no: m.no, mach: m.mach, name: m.name, top: r.hasData && !r.error ? best + 1 : 0, pct: r.hasData && !r.error ? Math.round(r.p[best] * 100) : 0, saved: Date.now() };
+    ['games', 'big', 'reg', 'grapeGames', 'grape', 'cherry', 'bell', 'clown', 'replay', 'miss'].forEach(function (k) { h[k] = m[k]; });
+    state.history = state.history.filter(function (x) { return x.id !== h.id; });
+    state.history.push(h);
+    if (state.history.length > 300) state.history = state.history.slice(-300);
+  }
+  function rollover() {
+    var t = today(), keep = [], last = null, changed = false;
+    state.machines.forEach(function (m) {
+      if (m.date < t) {
+        if (m.games > 0 || m.grapeGames > 0 || m.big || m.reg) archive(m);
+        last = m; changed = true;
+      } else keep.push(m);
+    });
+    if (!changed) return false;
+    if (!keep.length) keep.push(blank('1台目', last && last.mach, last && last.shop));
+    state.machines = keep;
+    if (!keep.some(function (m) { return m.id === state.cur; })) state.cur = keep[0].id;
+    touch();
+    return true;
+  }
+  function renderHist() {
+    var list = state.history.slice().sort(function (a, b) { return (b.date || '').localeCompare(a.date || '') || b.saved - a.saved; });
+    $('histSum').textContent = '保存した記録(' + list.length + '件)';
+    if (!list.length) { $('hist').innerHTML = '<div class="h2" style="font-size:12px;color:var(--muted)">まだ記録がありません。「この台を記録に保存」で残せます。</div>'; return; }
+    var h = '';
+    list.forEach(function (x) {
+      var place = [x.shop, x.no ? x.no + '番' : ''].filter(Boolean).join(' ');
+      h += '<div class="hrow"><div><div class="h1">' + esc(x.date) + ' ' + esc(place || x.name) + ' <span style="font-weight:400;color:var(--muted)">' + esc(machineOf(x.mach).name) + '</span></div>' +
+        '<div class="h2">' + fmt(x.games) + 'G BIG' + x.big + ' REG' + x.reg + ' ぶどう' + x.grape + '/' + fmt(x.grapeGames) + 'G' +
+        (x.top ? ' → <span class="res">設定' + x.top + 'が最有力 ' + x.pct + '%</span>' : '') + '</div></div>' +
+        '<button class="btn small" type="button" data-act="hdel" data-hid="' + esc(x.id) + '" aria-label="この記録を削除">削除</button></div>';
+    });
+    $('hist').innerHTML = h;
+  }
+  function exportCsv() {
+    var head = ['日付', '店舗名', '台番', '機種', '台の名前', '総回転数', 'BIG', 'REG', '数えたゲーム数', 'ぶどう', 'チェリー', 'ベル', 'ピエロ', 'リプレイ', 'ハズレ', '最有力の設定', '可能性%'];
+    function q(v) { v = String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+    var rows = [head.join(',')];
+    state.history.slice().sort(function (a, b) { return (a.date || '').localeCompare(b.date || '') || a.saved - b.saved; }).forEach(function (x) {
+      rows.push([x.date, x.shop, x.no, machineOf(x.mach).name, x.name, x.games, x.big, x.reg, x.grapeGames, x.grape, x.cherry, x.bell, x.clown, x.replay, x.miss, x.top || '', x.top ? x.pct : ''].map(q).join(','));
+    });
+    var data = '\ufeff' + rows.join('\r\n'), fname = 'juggler-' + today() + '.csv';
+    (async function () {
+      try {
+        var dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null;
+        if (dl) { await dl.save({ filename: fname, data: data }); return; }
+      } catch (e) { if (e && e.code === 'declined') return; }
+      try {
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([data], { type: 'text/csv' }));
+        a.download = fname; document.body.appendChild(a); a.click(); a.remove();
+      } catch (e) { setSync('書き出せません'); }
+    })();
+  }
+
   function renderTools() {
     var m = cur();
     setIfIdle($('mname'), m.name);
+    setIfIdle($('mdate'), m.date);
+    setIfIdle($('mshop'), m.shop);
+    setIfIdle($('mno'), m.no);
     var sp = machineOf(m.mach);
     var mh = '';
     MACHINES.forEach(function (x) { mh += '<option value="' + x.id + '">' + x.name + '</option>'; });
@@ -495,7 +597,7 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
     renderSpec();
   }
 
-  function renderAll() { renderChips(); renderCounts(); renderResult(); renderTools(); }
+  function renderAll() { renderChips(); renderCounts(); renderResult(); renderTools(); renderHist(); }
 
   function renderSpec() {
     var sp = machineOf(cur().mach), keys = Object.keys(sp.grape);
@@ -528,13 +630,25 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
       var a = t.dataset.act;
       if (a === 'big+') bump('big', 1); else if (a === 'big-') bump('big', -1);
       else if (a === 'reg+') bump('reg', 1); else if (a === 'reg-') bump('reg', -1);
+      else if (a === 'saveRec') {
+        archive(m); touch(); renderHist();
+        t.textContent = '保存しました'; setTimeout(function () { t.textContent = 'この台を記録に保存'; }, 1500);
+      }
+      else if (a === 'csv') exportCsv();
+      else if (a === 'hdel') { state.history = state.history.filter(function (x) { return x.id !== t.dataset.hid; }); touch(); renderHist(); }
+      else if (a === 'hclear') {
+        if (t.dataset.confirm !== '1') {
+          t.dataset.confirm = '1'; t.textContent = 'もう一度押すと全部消えます';
+          setTimeout(function () { t.dataset.confirm = ''; t.textContent = '記録をすべて消す'; }, 3000);
+        } else { t.dataset.confirm = ''; t.textContent = '記録をすべて消す'; state.history = []; touch(); renderHist(); }
+      }
       else if (a === 'grapeSync') { m.grapeGames = m.games; touch(); renderCounts(); renderResult(); }
       return;
     }
     if (t.classList.contains('tile')) { tap(t.dataset.kind); return; }
     if (t.id === 'undoTap') { undoTap(); return; }
     if (t.id === 'addMachine') {
-      var nm = blank((state.machines.length + 1) + '台目', m.mach);
+      var nm = blank((state.machines.length + 1) + '台目', m.mach, m.shop);
       state.machines.push(nm); state.cur = nm.id;
       touch(); renderAll();
       return;
@@ -555,7 +669,7 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
         m.games = 0; m.big = 0; m.reg = 0; m.grapeGames = 0; m.grape = 0; m.cherry = 0; m.bell = 0; m.clown = 0; m.replay = 0; m.miss = 0; taps[m.id] = [];
       } else {
         state.machines = state.machines.filter(function (x) { return x.id !== m.id; });
-        if (!state.machines.length) state.machines.push(blank('1台目', m.mach));
+        if (!state.machines.length) state.machines.push(blank('1台目', m.mach, m.shop));
         state.cur = state.machines[0].id;
       }
       touch(); renderAll();
@@ -572,6 +686,10 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
     cur().name = e.target.value.slice(0, 20) || '台';
     touch(); renderChips();
   });
+  $('mdate').addEventListener('change', function (e) { if (e.target.value) { cur().date = e.target.value; touch(); } });
+  $('mshop').addEventListener('input', function (e) { cur().shop = e.target.value.slice(0, 30); touch(); });
+  $('mno').addEventListener('input', function (e) { cur().no = e.target.value.slice(0, 10); touch(); renderChips(); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && rollover()) renderAll(); });
   $('preset').addEventListener('change', function (e) { cur().preset = e.target.value; touch(); renderCounts(); renderResult(); });
   $('mach').addEventListener('change', function (e) {
     var m = cur(); m.mach = e.target.value; m.preset = machineOf(m.mach).def;
@@ -592,7 +710,7 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
     flushing = true; dirty = false;
     var retry = false;
     try {
-      await col.doc('state').set({ v: 1, updated: state.updated, cur: state.cur, machines: state.machines });
+      await col.doc('state').set({ v: 1, updated: state.updated, cur: state.cur, machines: state.machines, history: state.history });
       setSync('');
     } catch (e) {
       setSync('同期できません');
@@ -617,7 +735,7 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
         var remoteT = Number(v.updated) || 0;
         if (remoteT > state.updated) {
           var next = normalize(clone(v));
-          if (next) { state = next; saveLocal(); renderAll(); }
+          if (next) { state = next; rollover(); saveLocal(); renderAll(); }
         } else if (state.updated > remoteT) {
           queue();
         }
@@ -625,6 +743,7 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
     } catch (e) { col = null; }
   }
 
+  rollover();
   renderAll();
   initCloud();
 })();
