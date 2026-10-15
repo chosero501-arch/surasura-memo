@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>マイジャグ6判別</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Doto:wght@700&display=swap">
+<style>
+/* Layout: one scrolling column. Result first, then data counter, then small-role counter, then machine tools.
+   Counts use a dot-matrix face like a hall data counter; the highest setting is the only thing in LED amber. */
+:root {
+  color-scheme: dark;
+  --bg: #0e1113;
+  --panel: #161a1d;
+  --panel2: #1e2327;
+  --line: #2c3338;
+  --ink: #e8ecee;
+  --muted: #93a0a8;
+  --led: #ffb23e;
+  --led-fg: #1a1204;
+  --bar: #39434a;
+  --danger: #ff8a7a;
+  --font: "BIZ UDPGothic", "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", sans-serif;
+  --led-font: "Doto", "Share Tech Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --bg: #e9ece8;
+    --panel: #fbfcfa;
+    --panel2: #eff2ee;
+    --line: #c9cfc9;
+    --ink: #1a2125;
+    --muted: #55616a;
+    --led: #b05400;
+    --led-fg: #ffffff;
+    --bar: #c3cbc7;
+    --danger: #b3362b;
+  }
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #e9ece8;
+  --panel: #fbfcfa;
+  --panel2: #eff2ee;
+  --line: #c9cfc9;
+  --ink: #1a2125;
+  --muted: #55616a;
+  --led: #b05400;
+  --led-fg: #ffffff;
+  --bar: #c3cbc7;
+  --danger: #b3362b;
+}
+
+html { box-sizing: border-box; }
+*, *::before, *::after { box-sizing: inherit; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 14px 40px;
+  -webkit-tap-highlight-color: transparent;
+}
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--led); outline-offset: 2px; }
+.app { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+
+.head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.head h1 { margin: 0; font-size: 19px; text-wrap: balance; }
+.sync { font-size: 12px; color: var(--danger); }
+
+.chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chip { flex: none; min-height: 38px; padding: 0 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; white-space: nowrap; touch-action: manipulation; }
+.chip[aria-selected="true"] { border-color: var(--led); color: var(--led); font-weight: 700; }
+.chip.add { color: var(--muted); }
+
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; min-width: 0; }
+.card h2 { margin: 0 0 10px; font-size: 14px; color: var(--muted); font-weight: 700; letter-spacing: 0.04em; }
+
+/* result */
+.verdict { margin: 0 0 12px; font-size: 15px; min-height: 1.6em; }
+.verdict b { font-family: var(--led-font); color: var(--led); font-size: 30px; line-height: 1; margin: 0 4px; vertical-align: -3px; }
+.rows { display: grid; gap: 7px; }
+.row { display: grid; grid-template-columns: 3.4em 1fr 4.4em; align-items: center; gap: 10px; }
+.row .lbl { font-size: 14px; color: var(--muted); }
+.row .track { height: 12px; background: var(--panel2); border-radius: 3px; overflow: hidden; }
+.row .fill { height: 100%; background: var(--bar); border-radius: 3px; min-width: 2px; }
+.row .pct { text-align: right; font-variant-numeric: tabular-nums; font-size: 14px; }
+.row.top .lbl, .row.top .pct { color: var(--led); font-weight: 700; }
+.row.top .fill { background: var(--led); }
+.sums { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--line); font-size: 14px; }
+.sums span b { font-variant-numeric: tabular-nums; margin-left: 4px; }
+.note { margin: 10px 0 0; font-size: 12px; color: var(--muted); }
+.warn { color: var(--danger); }
+
+/* counters */
+.field { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px 12px; padding: 10px 0; }
+.field + .field { border-top: 1px solid var(--line); }
+.field .name { font-weight: 700; }
+.field .sub { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.num { width: 8.5em; min-height: 46px; padding: 0 12px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; text-align: right; font-family: var(--led-font); font-size: 26px; color: var(--led); font-variant-numeric: tabular-nums; }
+.step { display: flex; align-items: center; gap: 8px; }
+.step .val { min-width: 3.2em; text-align: right; font-family: var(--led-font); font-size: 30px; line-height: 1; color: var(--led); font-variant-numeric: tabular-nums; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 48px; min-height: 48px; padding: 0 14px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; user-select: none; touch-action: manipulation; }
+.btn:active { background: var(--line); }
+.btn.plus { background: var(--led); color: var(--led-fg); border-color: var(--led); font-weight: 700; font-size: 20px; }
+.btn.small { min-height: 36px; min-width: 36px; padding: 0 10px; font-size: 13px; }
+.btn.danger[data-confirm="1"] { color: var(--danger); border-color: var(--danger); }
+
+.tap { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.tap .big { min-height: 76px; justify-content: space-between; padding: 0 18px; background: var(--led); border-color: var(--led); color: var(--led-fg); font-weight: 700; font-size: 17px; }
+.tap .big .val { font-family: var(--led-font); font-size: 40px; line-height: 1; }
+
+details { margin: 0; }
+summary { cursor: pointer; min-height: 40px; display: flex; align-items: center; font-weight: 700; color: var(--muted); font-size: 14px; }
+.tools { display: grid; gap: 10px; padding-top: 8px; }
+.tools label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.tools input[type="text"], .tools select { min-height: 44px; padding: 0 10px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; color: var(--ink); width: 100%; }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.src { font-size: 12px; color: var(--muted); display: grid; gap: 6px; }
+.src table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+.src th, .src td { padding: 4px 6px; border-bottom: 1px solid var(--line); text-align: right; }
+.src th:first-child, .src td:first-child { text-align: left; }
+.src .wrap { overflow-x: auto; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<main class="app" id="app">
+  <header class="head">
+    <h1>マイジャグ6 判別</h1>
+    <span class="sync" id="sync" role="status"></span>
+  </header>
+
+  <div class="chips" id="chips" role="tablist" aria-label="台の切り替え"></div>
+
+  <section class="card" aria-live="polite" aria-label="判別結果">
+    <h2>設定の可能性</h2>
+    <p class="verdict" id="verdict"></p>
+    <div class="rows" id="rows"></div>
+    <div class="sums" id="sums"></div>
+    <p class="note" id="rnote"></p>
+  </section>
+
+  <section class="card" aria-label="データカウンター">
+    <h2>データカウンター</h2>
+    <div class="field">
+      <label class="name" for="games">総回転数</label>
+      <input class="num" id="games" type="text" inputmode="numeric" autocomplete="off" aria-label="総回転数">
+    </div>
+    <div class="field">
+      <div><div class="name">BIG</div><div class="sub" id="bigRate"></div></div>
+      <div class="step">
+        <button class="btn" type="button" data-act="big-" aria-label="BIGを1減らす">−</button>
+        <span class="val" id="bigVal">0</span>
+        <button class="btn plus" type="button" data-act="big+" aria-label="BIGを1増やす">+</button>
+      </div>
+    </div>
+    <div class="field">
+      <div><div class="name">REG</div><div class="sub" id="regRate"></div></div>
+      <div class="step">
+        <button class="btn" type="button" data-act="reg-" aria-label="REGを1減らす">−</button>
+        <span class="val" id="regVal">0</span>
+        <button class="btn plus" type="button" data-act="reg+" aria-label="REGを1増やす">+</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" aria-label="小役カウンター">
+    <h2>小役カウンター</h2>
+    <div class="field">
+      <div class="tap">
+        <button class="btn big" type="button" data-act="grape+" aria-label="ぶどうを1増やす"><span>ぶどう +1</span><span class="val" id="grapeVal">0</span></button>
+        <button class="btn" type="button" data-act="grape-" aria-label="ぶどうを1減らす">−1</button>
+      </div>
+      <div class="sub" id="grapeRate"></div>
+      <div class="step">
+        <label class="sub" for="grapeGames">ぶどうを数えたゲーム数</label>
+        <input class="num" id="grapeGames" type="text" inputmode="numeric" autocomplete="off" style="width:7em;font-size:22px" aria-label="ぶどうを数えたゲーム数">
+        <button class="btn small" type="button" data-act="grapeSync">総回転数と同じ</button>
+      </div>
+    </div>
+    <div class="field">
+      <div><div class="name">チェリー</div><div class="sub">設定差が未公表のため、判別には使いません</div></div>
+      <div class="step">
+        <button class="btn" type="button" data-act="cherry-" aria-label="チェリーを1減らす">−</button>
+        <span class="val" id="cherryVal">0</span>
+        <button class="btn plus" type="button" data-act="cherry+" aria-label="チェリーを1増やす">+</button>
+      </div>
+    </div>
+    <p class="note">ぶどうは通常時のゲーム数で数えるのが一般的です。数え始めたあとのゲーム数を入れてください。</p>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary>台の管理・ぶどうの設定</summary>
+      <div class="tools">
+        <label>台の名前
+          <input type="text" id="mname" autocomplete="off" maxlength="20">
+        </label>
+        <label>ぶどう確率の見積もり
+          <select id="preset">
+            <option value="A">推定A(前作からの逆算・ジャグラーズネット)</option>
+            <option value="B">推定B(ホール実戦値・ジャグラートピックス)</option>
+            <option value="off">ぶどうは判別に使わない</option>
+          </select>
+        </label>
+        <div class="btns">
+          <button class="btn small danger" type="button" id="reset">この台の数字をゼロに戻す</button>
+          <button class="btn small danger" type="button" id="remove">この台を削除</button>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary>使っている数値と出典</summary>
+      <div class="src" style="padding-top:8px">
+        <div class="wrap"><table id="spec"></table></div>
+        <div>BIG・REG・機械割はメーカー公表値です(複数のサイトで一致を確認、設定2のREGだけ1/385.5と1/385.8の表記ゆれ。ここでは1/385.5を使用)。</div>
+        <div>ぶどう確率はまだ公式発表がなく、推定値です。設定ごとの差が小さいため、判別への影響は小さめです。</div>
+        <div>導入日は2026年10月5日です。公式のぶどう・チェリー確率が出たら、数値を差し替えます。</div>
+        <div>結果は「設定がいくつか」の断定ではなく、入力した数字から計算した可能性の目安です。</div>
+      </div>
+    </details>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  /*MATH*/
+  var BIG = [273.1, 270.8, 266.4, 254.0, 240.1, 229.1];
+  var REG = [409.6, 385.5, 336.1, 290.0, 268.6, 229.1];
+  var PAYOUT = [97.0, 98.0, 99.9, 102.8, 105.3, 109.4];
+  var GRAPE = {
+    A: [5.90, 5.86, 5.83, 5.83, 5.83, 5.79],
+    B: [5.95, 5.86, 5.82, 5.79, 5.75, 5.65]
+  };
+
+  function posterior(m, preset) {
+    var N = m.games, b = m.big, r = m.reg;
+    var out = { p: [1 / 6, 1 / 6, 1 / 6, 1 / 6, 1 / 6, 1 / 6], hasData: false, grapeUsed: false, error: '' };
+    if (N <= 0) return out;
+    if (b + r > N) { out.error = 'BIGとREGの合計が、総回転数より多くなっています。'; return out; }
+    var useGrape = preset !== 'off' && GRAPE[preset] && m.grapeGames > 0;
+    if (useGrape && m.grape > m.grapeGames) { out.error = 'ぶどうの回数が、数えたゲーム数より多くなっています。'; return out; }
+    var ll = [];
+    for (var s = 0; s < 6; s++) {
+      var pb = 1 / BIG[s], pr = 1 / REG[s];
+      var v = b * Math.log(pb) + r * Math.log(pr) + (N - b - r) * Math.log(1 - pb - pr);
+      if (useGrape) {
+        var pg = 1 / GRAPE[preset][s];
+        v += m.grape * Math.log(pg) + (m.grapeGames - m.grape) * Math.log(1 - pg);
+      }
+      ll.push(v);
+    }
+    var mx = Math.max.apply(null, ll), sum = 0, e = [];
+    for (var i = 0; i < 6; i++) { e.push(Math.exp(ll[i] - mx)); sum += e[i]; }
+    out.p = e.map(function (x) { return x / sum; });
+    out.hasData = true;
+    out.grapeUsed = !!useGrape;
+    return out;
+  }
+  /*ENDMATH*/
+
+  var LS_KEY = 'mj6-hantei-v1';
+  function $(id) { return document.getElementById(id); }
+  function clone(x) { return JSON.parse(JSON.stringify(x)); }
+  function newId() { return 'm_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
+  function num(v, max) {
+    var n = parseInt(String(v).replace(/[^\d]/g, ''), 10);
+    if (isNaN(n)) n = 0;
+    return Math.min(max || 999999, Math.max(0, n));
+  }
+  function fmt(n) { return Number(n).toLocaleString('ja-JP'); }
+
+  function blank(name) { return { id: newId(), name: name, games: 0, big: 0, reg: 0, grapeGames: 0, grape: 0, cherry: 0 }; }
+  function sample() {
+    var m = blank('入力例');
+    m.games = 3200; m.big = 12; m.reg = 13; m.grapeGames = 2900; m.grape = 495; m.cherry = 80;
+    return m;
+  }
+  function normalize(st) {
+    if (!st || !Array.isArray(st.machines) || !st.machines.length) return null;
+    st.machines = st.machines.map(function (m) {
+      return {
+        id: String(m.id || newId()), name: String(m.name || '台').slice(0, 20),
+        games: num(m.games), big: num(m.big), reg: num(m.reg),
+        grapeGames: num(m.grapeGames), grape: num(m.grape), cherry: num(m.cherry)
+      };
+    });
+    if (!st.machines.some(function (m) { return m.id === st.cur; })) st.cur = st.machines[0].id;
+    if (['A', 'B', 'off'].indexOf(st.preset) < 0) st.preset = 'A';
+    st.updated = Number(st.updated) || 0;
+    return st;
+  }
+
+  var state = null;
+  try {
+    var raw = localStorage.getItem(LS_KEY);
+    if (raw) state = normalize(JSON.parse(raw));
+  } catch (e) { /* storage unavailable */ }
+  if (!state) { var s0 = sample(); state = { machines: [s0], cur: s0.id, preset: 'A', updated: 0 }; }
+
+  function cur() { return state.machines.find(function (m) { return m.id === state.cur; }) || state.machines[0]; }
+  function saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } }
+  function touch() { state.updated = Date.now(); saveLocal(); queue(); }
+
+  /* ---------- rendering ---------- */
+  function renderChips() {
+    var h = '';
+    state.machines.forEach(function (m) {
+      h += '<button class="chip" type="button" role="tab" data-id="' + m.id + '" aria-selected="' + (m.id === state.cur) + '"></button>';
+    });
+    h += '<button class="chip add" type="button" id="addMachine">＋ 台を追加</button>';
+    $('chips').innerHTML = h;
+    var chips = $('chips').querySelectorAll('.chip[data-id]');
+    state.machines.forEach(function (m, i) { chips[i].textContent = m.name; });
+  }
+
+  function renderResult() {
+    var m = cur();
+    var r = posterior(m, state.preset);
+    var verdict = $('verdict'), rows = $('rows'), sums = $('sums'), rnote = $('rnote');
+    var best = 0;
+    for (var i = 1; i < 6; i++) if (r.p[i] > r.p[best]) best = i;
+    if (r.error) {
+      verdict.innerHTML = '<span class="warn">' + r.error + '</span>';
+    } else if (!r.hasData) {
+      verdict.textContent = '総回転数を入れると、設定の可能性を計算します。';
+    } else {
+      verdict.innerHTML = '設定<b>' + (best + 1) + '</b>が最有力(' + (r.p[best] * 100).toFixed(1) + '%)';
+    }
+    var h = '';
+    for (var s = 0; s < 6; s++) {
+      var pct = r.p[s] * 100;
+      var top = r.hasData && s === best;
+      h += '<div class="row' + (top ? ' top' : '') + '"><span class="lbl">設定' + (s + 1) + '</span>' +
+        '<span class="track"><span class="fill" style="width:' + pct.toFixed(1) + '%"></span></span>' +
+        '<span class="pct">' + pct.toFixed(1) + '%</span></div>';
+    }
+    rows.innerHTML = h;
+    rows.style.opacity = r.hasData ? '1' : '0.45';
+    var ge4 = r.p[3] + r.p[4] + r.p[5], ge5 = r.p[4] + r.p[5];
+    sums.innerHTML = r.hasData && !r.error
+      ? '<span>設定4以上<b>' + (ge4 * 100).toFixed(0) + '%</b></span><span>設定5以上<b>' + (ge5 * 100).toFixed(0) + '%</b></span><span>設定6<b>' + (r.p[5] * 100).toFixed(0) + '%</b></span>'
+      : '';
+    var t = '';
+    if (r.hasData) {
+      t = '計算に使ったデータ: 総回転数 ' + fmt(m.games) + 'G';
+      t += r.grapeUsed ? '、ぶどう ' + fmt(m.grape) + '回/' + fmt(m.grapeGames) + 'G' : '(ぶどうは使っていません)';
+      t += '。回転数が少ないうちは、結果が大きく動きます。';
+    }
+    rnote.textContent = t;
+  }
+
+  function setIfIdle(el, v) { if (document.activeElement !== el) el.value = v; }
+  function renderCounts() {
+    var m = cur();
+    setIfIdle($('games'), m.games ? fmt(m.games) : '');
+    setIfIdle($('grapeGames'), m.grapeGames ? fmt(m.grapeGames) : '');
+    $('bigVal').textContent = m.big;
+    $('regVal').textContent = m.reg;
+    $('grapeVal').textContent = m.grape;
+    $('cherryVal').textContent = m.cherry;
+    $('bigRate').textContent = m.big && m.games ? '1/' + (m.games / m.big).toFixed(1) + '(設定1〜6: 1/273〜1/229)' : '設定1〜6: 1/273.1〜1/229.1';
+    $('regRate').textContent = m.reg && m.games ? '1/' + (m.games / m.reg).toFixed(1) + '(設定1〜6: 1/410〜1/229)' : '設定1〜6: 1/409.6〜1/229.1';
+    $('grapeRate').textContent = m.grape && m.grapeGames ? 'ぶどう 1/' + (m.grapeGames / m.grape).toFixed(2) : 'ぶどう 1/—';
+  }
+
+  function renderTools() {
+    var m = cur();
+    setIfIdle($('mname'), m.name);
+    $('preset').value = state.preset;
+  }
+
+  function renderAll() { renderChips(); renderCounts(); renderResult(); renderTools(); }
+
+  function renderSpec() {
+    var h = '<tr><th>設定</th><th>BIG</th><th>REG</th><th>機械割</th><th>ぶどうA</th><th>ぶどうB</th></tr>';
+    for (var s = 0; s < 6; s++) {
+      h += '<tr><td>' + (s + 1) + '</td><td>1/' + BIG[s].toFixed(1) + '</td><td>1/' + REG[s].toFixed(1) + '</td><td>' + PAYOUT[s].toFixed(1) + '%</td><td>1/' + GRAPE.A[s].toFixed(2) + '</td><td>1/' + GRAPE.B[s].toFixed(2) + '</td></tr>';
+    }
+    $('spec').innerHTML = h;
+  }
+
+  /* ---------- events ---------- */
+  function bump(field, d) {
+    var m = cur();
+    m[field] = Math.max(0, m[field] + d);
+    touch(); renderCounts(); renderResult();
+  }
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest ? e.target.closest('[data-act],.chip,#reset,#remove') : null;
+    if (!t) return;
+    var m = cur();
+    if (t.dataset.act) {
+      var a = t.dataset.act;
+      if (a === 'big+') bump('big', 1); else if (a === 'big-') bump('big', -1);
+      else if (a === 'reg+') bump('reg', 1); else if (a === 'reg-') bump('reg', -1);
+      else if (a === 'grape+') bump('grape', 1); else if (a === 'grape-') bump('grape', -1);
+      else if (a === 'cherry+') bump('cherry', 1); else if (a === 'cherry-') bump('cherry', -1);
+      else if (a === 'grapeSync') { m.grapeGames = m.games; touch(); renderCounts(); renderResult(); }
+      return;
+    }
+    if (t.id === 'addMachine') {
+      var nm = blank((state.machines.length + 1) + '台目');
+      state.machines.push(nm); state.cur = nm.id;
+      touch(); renderAll();
+      return;
+    }
+    if (t.classList.contains('chip') && t.dataset.id) {
+      state.cur = t.dataset.id; touch(); renderAll();
+      return;
+    }
+    if (t.id === 'reset' || t.id === 'remove') {
+      if (t.dataset.confirm !== '1') {
+        t.dataset.confirm = '1';
+        var old = t.textContent;
+        t.textContent = 'もう一度押すと実行します';
+        setTimeout(function () { if (t.isConnected) { t.dataset.confirm = ''; t.textContent = old; } }, 3000);
+        return;
+      }
+      if (t.id === 'reset') {
+        m.games = 0; m.big = 0; m.reg = 0; m.grapeGames = 0; m.grape = 0; m.cherry = 0;
+      } else {
+        state.machines = state.machines.filter(function (x) { return x.id !== m.id; });
+        if (!state.machines.length) state.machines.push(blank('1台目'));
+        state.cur = state.machines[0].id;
+      }
+      touch(); renderAll();
+      t.dataset.confirm = '';
+      t.textContent = t.id === 'reset' ? 'この台の数字をゼロに戻す' : 'この台を削除';
+    }
+  });
+
+  $('games').addEventListener('input', function (e) { cur().games = num(e.target.value); touch(); renderCounts(); renderResult(); });
+  $('grapeGames').addEventListener('input', function (e) { cur().grapeGames = num(e.target.value); touch(); renderCounts(); renderResult(); });
+  $('games').addEventListener('blur', renderCounts);
+  $('grapeGames').addEventListener('blur', renderCounts);
+  $('mname').addEventListener('input', function (e) {
+    cur().name = e.target.value.slice(0, 20) || '台';
+    touch(); renderChips();
+  });
+  $('preset').addEventListener('change', function (e) { state.preset = e.target.value; touch(); renderResult(); });
+
+  /* ---------- sync (private to each signed-in viewer; works offline-only elsewhere) ---------- */
+  var col = null, dirty = false, flushT = null, flushing = false;
+  function setSync(t) { $('sync').textContent = t; }
+  function queue() {
+    if (!col) return;
+    dirty = true;
+    clearTimeout(flushT);
+    flushT = setTimeout(flush, 1000);
+  }
+  async function flush() {
+    if (!col || flushing || !dirty) return;
+    flushing = true; dirty = false;
+    var retry = false;
+    try {
+      await col.doc('state').set({ v: 1, updated: state.updated, cur: state.cur, preset: state.preset, machines: state.machines });
+      setSync('');
+    } catch (e) {
+      setSync('同期できません');
+      if (e && (e.code === 'unavailable' || e.code === 'resource_exhausted')) { dirty = true; retry = true; }
+    } finally {
+      flushing = false;
+      if (dirty) { clearTimeout(flushT); flushT = setTimeout(flush, retry ? 8000 : 1000); }
+    }
+  }
+  async function initCloud() {
+    try {
+      if (!window.claude || !window.claude.use) return;
+      var db = await window.claude.use('db');
+      var user = await window.claude.use('user');
+      if (!db || !user) return;
+      var uid = await user.id();
+      if (!uid) return;
+      col = db.collection('data/users/' + uid);
+      col.doc('state').onSnapshot(function (snap) {
+        if (!snap.exists) { if (state.updated > 0) queue(); return; }
+        var v = snap.data();
+        var remoteT = Number(v.updated) || 0;
+        if (remoteT > state.updated) {
+          var next = normalize(clone(v));
+          if (next) { state = next; saveLocal(); renderAll(); }
+        } else if (state.updated > remoteT) {
+          queue();
+        }
+      }, function () { col = null; });
+    } catch (e) { col = null; }
+  }
+
+  renderSpec();
+  renderAll();
+  initCloud();
+})();
+</script>
+
+</body>
+</html>
