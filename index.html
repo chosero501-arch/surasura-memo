@@ -296,6 +296,9 @@ button { font: inherit; color: inherit; }
       <button class="btn switch" id="set-shadow" type="button" role="switch" aria-checked="true" aria-labelledby="lbl-sh">オン</button>
       <p class="note" style="grid-column:1/-1">オフにすると描画がわずかに速くなります。</p>
     </div>
+    <div class="set">
+      <span class="lbl">保存の状態</span><output id="set-status"></output>
+    </div>
   </div>
 </div>
 <div class="toast" id="toast" role="status" hidden></div>
@@ -836,7 +839,10 @@ button { font: inherit; color: inherit; }
 
   function setStatus(s) {
     var m = { local: 'この端末に自動保存', saving: '同期中…', synced: '同期済み', error: '同期できません', big: 'ページが大きすぎて同期できません' };
-    el.status.textContent = m[s] || '';
+    var bad = (s === 'error' || s === 'big');
+    el.status.textContent = bad ? (m[s] || '') : '';
+    var st = $('set-status');
+    if (st) st.textContent = m[s] || '';
   }
   function queuePage(id) {
     dirty.add(id);
