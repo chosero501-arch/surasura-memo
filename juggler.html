@@ -70,7 +70,7 @@ button, input, select { font: inherit; color: inherit; box-sizing: border-box; }
 .app { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
 
 .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.head h1 { flex: 1; min-width: 0; margin: 0; font-size: 19px; text-wrap: balance; }
+.head h1 { flex: 1; min-width: 0; margin: 0; font-size: 19px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sync { font-size: 12px; color: var(--danger); }
 
 .chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
@@ -151,25 +151,17 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
 
 <main class="app" id="app">
   <header class="head">
-    <h1>ジャグラーシリーズ設定判別カウンター</h1>
+    <h1>ジャグラー設定判別</h1>
     <span class="sync" id="sync" role="status"></span>
-    <button class="btn small" type="button" id="reload" aria-label="再読み込み" title="再読み込み">↻ 再読み込み</button>
+    <button class="btn small" type="button" id="reload" aria-label="再読み込み" title="再読み込み">↻</button>
   </header>
 
   <div class="chips" id="chips" role="tablist" aria-label="台の切り替え"></div>
 
-  <section class="card" aria-label="台の情報">
-    <div class="info">
-      <label>日付<input type="date" id="mdate"></label>
-      <label>台番<input type="text" id="mno" inputmode="numeric" autocomplete="off" maxlength="10" placeholder="例 123"></label>
-      <label class="wide">店舗名<input type="text" id="mshop" autocomplete="off" maxlength="30" placeholder="例 ○○ホール"></label>
-      <div class="acts">
-        <button class="btn small" type="button" data-act="saveRec" id="saveRec">この台を記録に保存</button>
-        <button class="btn small" type="button" data-act="saveImg" id="saveImg">画像で保存</button>
-        <span class="sub" style="font-size:12px;color:var(--muted)">日付が過ぎた台は、翌日に記録へ自動保存して消えます</span>
-      </div>
-    </div>
-  </section>
+
+
+
+
 
   <section class="card" aria-live="polite" aria-label="判別結果">
     <h2 id="rtitle">設定の可能性</h2>
@@ -177,6 +169,23 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
     <div class="rows" id="rows"></div>
     <div class="sums" id="sums"></div>
     <p class="note" id="rnote"></p>
+  </section>
+
+  <section class="card" aria-label="小役カウンター">
+    <h2>小役カウンター</h2>
+    <div class="gbar">
+      <div>
+        <label class="name" for="grapeGames">数えたゲーム数</label>
+        <div class="sub">どれかを押すと、1ゲーム増えます</div>
+      </div>
+      <input class="num" id="grapeGames" type="text" inputmode="numeric" autocomplete="off" aria-label="数えたゲーム数" style="width:7em">
+    </div>
+    <div class="tiles" id="tiles"></div>
+    <div class="btns" style="margin-top:10px">
+      <button class="btn small" type="button" id="undoTap" disabled>1つ取り消す</button>
+      <button class="btn small" type="button" data-act="grapeSync">総回転数と同じにする</button>
+    </div>
+    <p class="note" id="tnote"></p>
   </section>
 
   <section class="card" aria-label="データカウンター">
@@ -203,22 +212,14 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
     </div>
   </section>
 
-  <section class="card" aria-label="小役カウンター">
-    <h2>小役カウンター</h2>
-    <div class="gbar">
-      <div>
-        <label class="name" for="grapeGames">数えたゲーム数</label>
-        <div class="sub">どれかを押すと、1ゲーム増えます</div>
-      </div>
-      <input class="num" id="grapeGames" type="text" inputmode="numeric" autocomplete="off" aria-label="数えたゲーム数" style="width:7em">
+  <section class="card" aria-label="日付・店舗・台番">
+    <div class="info">
+      <label>日付<input type="date" id="mdate"></label>
+      <label>台番<input type="text" id="mno" inputmode="numeric" autocomplete="off" maxlength="10" placeholder="例 123"></label>
+      <label class="wide">店舗名<input type="text" id="mshop" autocomplete="off" maxlength="30" placeholder="例 ○○ホール"></label>
     </div>
-    <div class="tiles" id="tiles"></div>
-    <div class="btns" style="margin-top:10px">
-      <button class="btn small" type="button" id="undoTap" disabled>1つ取り消す</button>
-      <button class="btn small" type="button" data-act="grapeSync">総回転数と同じにする</button>
-    </div>
-    <p class="note" id="tnote"></p>
   </section>
+
 
   <section class="card">
     <details>
@@ -241,8 +242,14 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
     </details>
   </section>
 
-  <section class="card">
-    <details>
+  <section class="card" aria-label="保存">
+    <h2>保存</h2>
+      <div class="btns">
+        <button class="btn small" type="button" data-act="saveRec" id="saveRec">この台を記録に保存</button>
+        <button class="btn small" type="button" data-act="saveImg" id="saveImg">画像で保存</button>
+        <span class="note" style="margin:0">日付が過ぎた台は、翌日に記録へ自動保存して消えます</span>
+      </div>
+    <details style="margin-top:6px">
       <summary id="histSum">保存した記録</summary>
       <div class="tools">
         <div class="btns">
