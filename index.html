@@ -163,7 +163,7 @@ button { font: inherit; color: inherit; }
 .lock { min-height: 34px; padding: 0 10px; font-size: 13px; }
 
 .pad {
-  position: absolute; left: 1px; right: 1px; bottom: 1px; z-index: 2; height: var(--ph);
+  position: absolute; left: 1px; right: 1px; bottom: 1px; z-index: 2; height: var(--ph); max-height: calc(100% - 64px);
   background: var(--glass); border-top: 1px solid var(--line); border-radius: 0 0 9px 9px;
   touch-action: none; overflow: hidden;
 }
@@ -309,16 +309,24 @@ button { font: inherit; color: inherit; }
 
   var LS_KEY = 'surasura-memo-v1';
   var LH = 48;
-  var HEIGHTS = [150, 200, 260];
+  var HEIGHTS = [200, 260, 340];
   var PEN_W = { 1: 2.4, 2: 3.8, 3: 5.4 };
   var DISP_W = { 1: 1.3, 2: 1.9, 3: 2.8 };
-  var DEFAULTS = { delay: 0.5, hsel: 1, gap: 8, shadow: true, manual: false, pen: 'k', width: 2, upd: 0 };
+  var DEFAULTS = { delay: 0.5, hsel: 1, gap: 8, shadow: true, manual: false, pen: 'k', width: 2, upd: 0, hv: 2 };
   var RET_SVG = '<svg class="ico" viewBox="0 0 24 24" width="18" height="18"><path d="M20 5v7a3 3 0 0 1-3 3H5"/><path d="m9 11-4 4 4 4"/></svg>';
 
   function $(id) { return document.getElementById(id); }
   function clone(x) { return JSON.parse(JSON.stringify(x)); }
   function newId() { return 'p_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
   function clamp(v, a, b) { return Math.min(b, Math.max(a, v)); }
+  /* Pad heights changed from 150/200/260 to 200/260/340. Keep each saved choice at about the same size. */
+  function migrateSettings(o) {
+    if (o && o.hv !== 2) {
+      o.hv = 2;
+      if ('hsel' in o) o.hsel = Number(o.hsel) === 2 ? 1 : 0;
+    }
+    return o;
+  }
 
   var settings = Object.assign({}, DEFAULTS);
   var pages = [];
@@ -366,7 +374,7 @@ button { font: inherit; color: inherit; }
           pages = d.pages.filter(function (p) { return p && typeof p.id === 'string' && Array.isArray(p.tokens); })
             .map(function (p) { return { id: p.id, tokens: p.tokens, cursor: p.tokens.length, updated: p.updated || 0 }; });
           curId = d.curId;
-          if (d.settings) settings = Object.assign({}, DEFAULTS, d.settings);
+          if (d.settings) settings = Object.assign({}, DEFAULTS, migrateSettings(d.settings));
           (d.tombs || []).forEach(function (t) { tombs.add(t); });
         }
       }
@@ -891,7 +899,7 @@ button { font: inherit; color: inherit; }
       var id = d.id, v = d.data();
       if (!v) return;
       if (id === 'settings') {
-        if ((v.upd || 0) > (settings.upd || 0)) { settings = Object.assign({}, DEFAULTS, clone(v)); applySettings(); saveLocal(); }
+        if ((v.upd || 0) > (settings.upd || 0)) { settings = Object.assign({}, DEFAULTS, migrateSettings(clone(v))); applySettings(); saveLocal(); }
         return;
       }
       if (id.indexOf('p_') !== 0) return;
