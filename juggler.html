@@ -131,6 +131,12 @@ input, select, textarea { font-size: 16px; }
 
 details { margin: 0; }
 summary { cursor: pointer; min-height: 40px; display: flex; align-items: center; font-weight: 700; color: var(--muted); font-size: 14px; }
+summary { list-style: none; gap: 8px; }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: "▶"; color: var(--led); font-size: 12px; width: 1.2em; flex: none; }
+details[open] > summary::before { content: "▼"; }
+summary::after { content: "開く"; margin-left: auto; font-weight: 400; font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 12px; padding: 1px 10px; flex: none; }
+details[open] > summary::after { content: "閉じる"; }
 .tools { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; padding-top: 8px; }
 .tools label { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; gap: 4px; font-size: 13px; color: var(--muted); }
 .tools input[type="text"], .tools select { min-height: 44px; padding: 0 10px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; color: var(--ink); width: 100%; }
