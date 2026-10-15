@@ -134,7 +134,7 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
 .info { display: grid; grid-template-columns: minmax(0, 1fr) 5.5em; gap: 8px; }
 .info label { display: grid; gap: 3px; font-size: 12px; color: var(--muted); min-width: 0; }
 .info label.wide { grid-column: 1 / -1; }
-.info input { min-height: 42px; padding: 0 10px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; color: var(--ink); width: 100%; min-width: 0; }
+.info input { -webkit-appearance: none; appearance: none; display: block; max-width: 100%; min-height: 42px; padding: 0 10px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; color: var(--ink); width: 100%; min-width: 0; }
 .info .acts { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .hist { display: grid; gap: 0; margin-top: 8px; }
 .hrow { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); font-size: 13px; }
@@ -176,7 +176,7 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
     <div class="gbar">
       <div>
         <label class="name" for="grapeGames">数えたゲーム数</label>
-        <div class="sub">どれかを押すと、1ゲーム増えます</div>
+        <div class="sub">どれかを押すと、このゲーム数と総回転数が1ずつ増えます</div>
       </div>
       <input class="num" id="grapeGames" type="text" inputmode="numeric" autocomplete="off" aria-label="数えたゲーム数" style="width:7em">
     </div>
@@ -514,7 +514,7 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
   }
   function tap(kind) {
     var m = cur();
-    m[kind] += 1; m.grapeGames += 1;
+    m[kind] += 1; m.grapeGames += 1; m.games += 1;
     stack().push(kind);
     touch(); renderCounts(); renderResult();
   }
@@ -524,6 +524,7 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
     var m = cur();
     m[kind] = Math.max(0, m[kind] - 1);
     m.grapeGames = Math.max(0, m.grapeGames - 1);
+    m.games = Math.max(0, m.games - 1);
     touch(); renderCounts(); renderResult();
   }
 
