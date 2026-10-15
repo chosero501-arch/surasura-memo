@@ -151,6 +151,13 @@ details[open] > summary::after { content: "閉じる"; }
 .hrow .h1 { font-weight: 700; }
 .hrow .h2 { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .hrow .res { color: var(--led); font-weight: 700; }
+.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+.chart .ax { stroke: var(--line); stroke-width: 1; }
+.chart .zero { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 4 3; }
+.chart .ln { fill: none; stroke: var(--led); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.chart .dot { fill: var(--led); }
+.chart text { fill: var(--muted); font-size: 11px; font-family: var(--font); }
+.sgn { min-width: 48px; font-size: 22px; font-weight: 700; }
 .src { font-size: 12px; color: var(--muted); display: grid; gap: 6px; }
 .src table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
 .src th, .src td { padding: 4px 6px; border-bottom: 1px solid var(--line); text-align: right; }
@@ -224,6 +231,32 @@ details[open] > summary::after { content: "閉じる"; }
       <div><div class="name">ペカり回数(合算値)</div><div class="sub" id="totRate"></div></div>
       <div class="step"><span class="val" id="totVal">0</span></div>
     </div>
+  </section>
+
+  <section class="card" aria-label="投入・差枚・グラフ">
+    <details>
+      <summary>投入枚数・差枚数・グラフ</summary>
+      <div style="padding-top:6px">
+        <div class="field">
+          <label class="name" for="inv">投入枚数</label>
+          <input class="num" id="inv" type="text" inputmode="numeric" autocomplete="off" aria-label="投入枚数" style="width:8.5em">
+        </div>
+        <div class="field">
+          <label class="name" for="net">差枚数</label>
+          <div class="step">
+            <button class="btn sgn" type="button" data-act="netSign" id="netSign" aria-label="プラスとマイナスの切り替え">＋</button>
+            <input class="num" id="net" type="text" inputmode="numeric" autocomplete="off" aria-label="差枚数の数字" style="width:7em">
+          </div>
+        </div>
+        <div class="sums" id="medSums"></div>
+        <svg class="chart" id="chart" viewBox="0 0 340 180" role="img" aria-label="差枚数のグラフ"></svg>
+        <div class="btns" style="margin-top:10px">
+          <button class="btn small" type="button" data-act="ptUndo">最後の点を消す</button>
+          <button class="btn small" type="button" data-act="ptClear">グラフをクリア</button>
+        </div>
+        <p class="note">差枚数を入れて確定すると(キーボードを閉じるか、＋/−を押すと)、そのときの総回転数でグラフに点が1つ増えます。横軸は総回転数、縦軸は差枚数です。</p>
+      </div>
+    </details>
   </section>
 
   <section class="card" aria-label="日付・店舗・台番">
@@ -392,7 +425,7 @@ details[open] > summary::after { content: "閉じる"; }
 
   function today() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
   function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-  function blank(name, mach, shop) { return { id: newId(), name: name, date: today(), shop: shop || '', no: '', mach: mach || 'mj6', preset: machineOf(mach || 'mj6').def, games: 0, big: 0, reg: 0, grapeGames: 0, grape: 0, cherry: 0, bell: 0, clown: 0, replay: 0, miss: 0 }; }
+  function blank(name, mach, shop) { return { inv: 0, na: 0, neg: false, pts: [], id: newId(), name: name, date: today(), shop: shop || '', no: '', mach: mach || 'mj6', preset: machineOf(mach || 'mj6').def, games: 0, big: 0, reg: 0, grapeGames: 0, grape: 0, cherry: 0, bell: 0, clown: 0, replay: 0, miss: 0 }; }
   function normalize(st) {
     if (!st || !Array.isArray(st.machines) || !st.machines.length) return null;
     st.machines = st.machines.map(function (m) {
@@ -401,6 +434,8 @@ details[open] > summary::after { content: "閉じる"; }
       if (pr !== 'off' && !sp.grape[pr]) pr = sp.def;
       return {
         id: String(m.id || newId()), name: String(m.name || '台').slice(0, 20), mach: mid, preset: pr,
+        inv: num(m.inv, 9999999), na: num(m.na, 9999999), neg: !!m.neg,
+        pts: (Array.isArray(m.pts) ? m.pts : []).slice(-200).map(function (q) { return [num(q && q[0]), Math.max(-9999999, Math.min(9999999, parseInt(q && q[1], 10) || 0))]; }),
         date: /^\d{4}-\d\d-\d\d$/.test(m.date) ? m.date : today(), shop: String(m.shop || '').slice(0, 30), no: String(m.no || '').slice(0, 10),
         games: num(m.games), big: num(m.big), reg: num(m.reg),
         grapeGames: num(m.grapeGames), grape: num(m.grape), cherry: num(m.cherry),
@@ -413,6 +448,7 @@ details[open] > summary::after { content: "閉じる"; }
     st.history = (Array.isArray(st.history) ? st.history : []).slice(-300).map(function (h) {
       var o = { id: String(h.id || newId()), date: String(h.date || '').slice(0, 10), shop: String(h.shop || '').slice(0, 30), no: String(h.no || '').slice(0, 10), mach: machineOf(h.mach).id, name: String(h.name || '').slice(0, 20), top: num(h.top, 6), pct: num(h.pct, 100), saved: Number(h.saved) || 0 };
       ['games', 'big', 'reg', 'grapeGames', 'grape', 'cherry', 'bell', 'clown', 'replay', 'miss'].forEach(function (k) { o[k] = num(h[k]); });
+      o.inv = num(h.inv, 9999999); o.net = Math.max(-9999999, Math.min(9999999, parseInt(h.net, 10) || 0));
       return o;
     });
     st.updated = Number(st.updated) || 0;
@@ -487,6 +523,7 @@ details[open] > summary::after { content: "閉じる"; }
     $('bigVal').textContent = m.big;
     $('regVal').textContent = m.reg;
     renderTiles(m);
+    renderMedals();
     var sp = machineOf(m.mach);
     var bR = '設定1〜6: 1/' + sp.big[0].toFixed(0) + '〜1/' + sp.big[5].toFixed(0);
     var rR = '設定1〜6: 1/' + sp.reg[0].toFixed(0) + '〜1/' + sp.reg[5].toFixed(0);
@@ -548,11 +585,50 @@ details[open] > summary::after { content: "閉じる"; }
     touch(); renderCounts(); renderResult();
   }
 
+  function netOf(m) { return (m.neg ? -1 : 1) * m.na; }
+  function chartData(m) {
+    var pts = [[0, 0]].concat(m.pts), xmax = 500, ymin = 0, ymax = 0;
+    pts.forEach(function (q) { if (q[0] > xmax) xmax = q[0]; if (q[1] < ymin) ymin = q[1]; if (q[1] > ymax) ymax = q[1]; });
+    xmax = Math.ceil(xmax / 500) * 500;
+    if (ymax - ymin < 200) { ymax += 100; ymin -= 100; }
+    var pad = (ymax - ymin) * 0.08; ymax = Math.ceil((ymax + pad) / 50) * 50; ymin = Math.floor((ymin - pad) / 50) * 50;
+    return { pts: pts, xmax: xmax, ymin: ymin, ymax: ymax };
+  }
+  function addPoint(m) {
+    if (!m.na && !m.inv) return;
+    var d = netOf(m), last = m.pts[m.pts.length - 1];
+    if (last && last[0] === m.games) last[1] = d; else m.pts.push([m.games, d]);
+    if (m.pts.length > 200) m.pts = m.pts.slice(-200);
+  }
+  function renderMedals() {
+    var m = cur(), n = netOf(m);
+    setIfIdle($('inv'), m.inv ? fmt(m.inv) : '');
+    setIfIdle($('net'), m.na ? fmt(m.na) : '');
+    $('netSign').textContent = m.neg ? '−' : '＋';
+    var h = '';
+    if (m.inv > 0) h += '<span>出玉率<b>' + ((m.inv + n) / m.inv * 100).toFixed(1) + '%</b></span><span>払出<b>' + fmt(m.inv + n) + '枚</b></span>';
+    if (m.inv > 0 && m.games > 0) h += '<span>1G平均<b>' + (n / m.games).toFixed(2) + '枚</b></span>';
+    $('medSums').innerHTML = h;
+    $('medSums').style.display = h ? '' : 'none';
+    var c = chartData(m), W = 340, H = 180, L = 52, R = 10, T = 10, B = 24;
+    function X(g) { return L + (W - L - R) * g / c.xmax; }
+    function Y(d) { return T + (H - T - B) * (c.ymax - d) / (c.ymax - c.ymin); }
+    var svg = '<line class="ax" x1="' + L + '" y1="' + T + '" x2="' + L + '" y2="' + (H - B) + '"/><line class="ax" x1="' + L + '" y1="' + (H - B) + '" x2="' + (W - R) + '" y2="' + (H - B) + '"/>';
+    svg += '<line class="zero" x1="' + L + '" y1="' + Y(0).toFixed(1) + '" x2="' + (W - R) + '" y2="' + Y(0).toFixed(1) + '"/>';
+    svg += '<text x="' + (L - 6) + '" y="' + (T + 8) + '" text-anchor="end">' + fmt(c.ymax) + '</text><text x="' + (L - 6) + '" y="' + (H - B) + '" text-anchor="end">' + fmt(c.ymin) + '</text><text x="' + (L - 6) + '" y="' + (Y(0) + 4).toFixed(1) + '" text-anchor="end">0</text>';
+    svg += '<text x="' + L + '" y="' + (H - 6) + '">0G</text><text x="' + (W - R) + '" y="' + (H - 6) + '" text-anchor="end">' + fmt(c.xmax) + 'G</text>';
+    svg += '<polyline class="ln" points="' + c.pts.map(function (q) { return X(q[0]).toFixed(1) + ',' + Y(q[1]).toFixed(1); }).join(' ') + '"/>';
+    c.pts.forEach(function (q, i) { svg += '<circle class="dot" cx="' + X(q[0]).toFixed(1) + '" cy="' + Y(q[1]).toFixed(1) + '" r="' + (i === c.pts.length - 1 ? 4 : 2.5) + '"/>'; });
+    if (c.pts.length === 1) svg += '<text x="' + (W / 2) + '" y="' + (H / 2) + '" text-anchor="middle">差枚数を入れると点が増えます</text>';
+    $('chart').innerHTML = svg;
+  }
+
   function archive(m) {
     var sp = machineOf(m.mach), r = posterior(m, sp, m.preset), best = 0;
     for (var i = 1; i < 6; i++) if (r.p[i] > r.p[best]) best = i;
     var h = { id: m.id, date: m.date, shop: m.shop, no: m.no, mach: m.mach, name: m.name, top: r.hasData && !r.error ? best + 1 : 0, pct: r.hasData && !r.error ? Math.round(r.p[best] * 100) : 0, saved: Date.now() };
     ['games', 'big', 'reg', 'grapeGames', 'grape', 'cherry', 'bell', 'clown', 'replay', 'miss'].forEach(function (k) { h[k] = m[k]; });
+    h.inv = m.inv; h.net = netOf(m);
     state.history = state.history.filter(function (x) { return x.id !== h.id; });
     state.history.push(h);
     if (state.history.length > 300) state.history = state.history.slice(-300);
@@ -561,7 +637,7 @@ details[open] > summary::after { content: "閉じる"; }
     var t = today(), keep = [], last = null, changed = false;
     state.machines.forEach(function (m) {
       if (m.date < t) {
-        if (m.games > 0 || m.grapeGames > 0 || m.big || m.reg) archive(m);
+        if (m.games > 0 || m.grapeGames > 0 || m.big || m.reg || m.inv) archive(m);
         last = m; changed = true;
       } else keep.push(m);
     });
@@ -581,17 +657,17 @@ details[open] > summary::after { content: "閉じる"; }
       var place = [x.shop, x.no ? x.no + '番' : ''].filter(Boolean).join(' ');
       h += '<div class="hrow"><div><div class="h1">' + esc(x.date) + ' ' + esc(place || x.name) + ' <span style="font-weight:400;color:var(--muted)">' + esc(machineOf(x.mach).name) + '</span></div>' +
         '<div class="h2">' + fmt(x.games) + 'G BIG' + x.big + ' REG' + x.reg + ' ぶどう' + x.grape + '/' + fmt(x.grapeGames) + 'G' +
-        (x.top ? ' → <span class="res">設定' + x.top + 'が最有力 ' + x.pct + '%</span>' : '') + '</div></div>' +
+        (x.inv ? ' 差枚' + (x.net > 0 ? '+' : '') + fmt(x.net) : '') + (x.top ? ' → <span class="res">設定' + x.top + 'が最有力 ' + x.pct + '%</span>' : '') + '</div></div>' +
         '<button class="btn small" type="button" data-act="hdel" data-hid="' + esc(x.id) + '" aria-label="この記録を削除">削除</button></div>';
     });
     $('hist').innerHTML = h;
   }
   function exportCsv() {
-    var head = ['日付', '店舗名', '台番', '機種', '台の名前', '総回転数', 'BIG', 'REG', '数えたゲーム数', 'ぶどう', 'チェリー', 'ベル', 'ピエロ', 'リプレイ', 'ハズレ', '最有力の設定', '可能性%'];
+    var head = ['日付', '店舗名', '台番', '機種', '台の名前', '総回転数', 'BIG', 'REG', '数えたゲーム数', 'ぶどう', 'チェリー', 'ベル', 'ピエロ', 'リプレイ', 'ハズレ', '投入枚数', '差枚数', '最有力の設定', '可能性%'];
     function q(v) { v = String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
     var rows = [head.join(',')];
     state.history.slice().sort(function (a, b) { return (a.date || '').localeCompare(b.date || '') || a.saved - b.saved; }).forEach(function (x) {
-      rows.push([x.date, x.shop, x.no, machineOf(x.mach).name, x.name, x.games, x.big, x.reg, x.grapeGames, x.grape, x.cherry, x.bell, x.clown, x.replay, x.miss, x.top || '', x.top ? x.pct : ''].map(q).join(','));
+      rows.push([x.date, x.shop, x.no, machineOf(x.mach).name, x.name, x.games, x.big, x.reg, x.grapeGames, x.grape, x.cherry, x.bell, x.clown, x.replay, x.miss, x.inv, x.net, x.top || '', x.top ? x.pct : ''].map(q).join(','));
     });
     var data = '\ufeff' + rows.join('\r\n'), fname = 'juggler-' + today() + '.csv';
     (async function () {
@@ -612,10 +688,10 @@ details[open] > summary::after { content: "閉じる"; }
     var W = 760, P = 36, y = 0, best = 0;
     for (var i = 1; i < 6; i++) if (r.p[i] > r.p[best]) best = i;
     var c = document.createElement('canvas'), dpr = 2;
-    c.width = W * dpr; c.height = 1260 * dpr;
+    c.width = W * dpr; c.height = 1700 * dpr;
     var g = c.getContext('2d'); g.scale(dpr, dpr);
     var F = '"Hiragino Sans","Yu Gothic UI","Noto Sans JP","BIZ UDPGothic",sans-serif';
-    g.fillStyle = '#fbfcfa'; g.fillRect(0, 0, W, 1260);
+    g.fillStyle = '#fbfcfa'; g.fillRect(0, 0, W, 1700);
     function t(txt, x, yy, size, col, bold, align) { g.font = (bold ? '700 ' : '400 ') + size + 'px ' + F; g.fillStyle = col; g.textAlign = align || 'left'; g.fillText(txt, x, yy); }
     var INK = '#1a2125', MUT = '#55616a', LED = '#b05400', LINE = '#c9cfc9';
     y = 56; t('ジャグラーシリーズ設定判別カウンター', P, y, 26, INK, true);
@@ -646,6 +722,23 @@ details[open] > summary::after { content: "閉じる"; }
     y += 44; t('BIG  ' + m.big + '回  ' + rate(m.big, m.games), P, y, 24, INK);
     y += 40; t('REG  ' + m.reg + '回  ' + rate(m.reg, m.games), P, y, 24, INK);
     y += 40; t('ペカり回数(合算値)  ' + (m.big + m.reg) + '回  ' + rate(m.big + m.reg, m.games), P, y, 24, INK);
+    var net = netOf(m);
+    if (m.inv > 0 || m.na > 0) {
+      y += 40; t('投入 ' + fmt(m.inv) + '枚   差枚 ' + (net > 0 ? '+' : '') + fmt(net) + '枚' + (m.inv > 0 ? '   出玉率 ' + ((m.inv + net) / m.inv * 100).toFixed(1) + '%' : ''), P, y, 24, INK);
+    }
+    if (m.pts.length) {
+      var cd = chartData(m), gx = P + 70, gw = W - 2 * P - 80, gy = y + 30, gh = 200;
+      function CX(v) { return gx + gw * v / cd.xmax; }
+      function CY(v) { return gy + gh * (cd.ymax - v) / (cd.ymax - cd.ymin); }
+      g.strokeStyle = LINE; g.lineWidth = 2; g.strokeRect(gx, gy, gw, gh);
+      g.setLineDash([8, 6]); g.strokeStyle = MUT; g.beginPath(); g.moveTo(gx, CY(0)); g.lineTo(gx + gw, CY(0)); g.stroke(); g.setLineDash([]);
+      g.strokeStyle = LED; g.lineWidth = 4; g.lineJoin = 'round'; g.beginPath();
+      cd.pts.forEach(function (q, i) { if (i) g.lineTo(CX(q[0]), CY(q[1])); else g.moveTo(CX(q[0]), CY(q[1])); }); g.stroke();
+      g.fillStyle = LED; cd.pts.forEach(function (q) { g.beginPath(); g.arc(CX(q[0]), CY(q[1]), 5, 0, 7); g.fill(); });
+      t(fmt(cd.ymax), gx - 8, gy + 14, 16, MUT, false, 'right'); t(fmt(cd.ymin), gx - 8, gy + gh, 16, MUT, false, 'right'); t('0', gx - 8, CY(0) + 5, 16, MUT, false, 'right');
+      t('0G', gx, gy + gh + 22, 16, MUT); t(fmt(cd.xmax) + 'G', gx + gw, gy + gh + 22, 16, MUT, false, 'right');
+      y = gy + gh + 30;
+    }
     y += 30; g.fillStyle = LINE; g.fillRect(P, y, W - 2 * P, 2);
     y += 46; t('小役カウンター(数えたゲーム数 ' + fmt(m.grapeGames) + 'G)', P, y, 20, MUT, true);
     var gUsed = m.preset !== 'off' && !!sp.grape[m.preset];
@@ -739,6 +832,9 @@ details[open] > summary::after { content: "閉じる"; }
         archive(m); touch(); renderHist();
         t.textContent = '保存しました'; setTimeout(function () { t.textContent = 'この台を記録に保存'; }, 1500);
       }
+      else if (a === 'netSign') { m.neg = !m.neg; addPoint(m); touch(); renderMedals(); }
+      else if (a === 'ptUndo') { m.pts.pop(); touch(); renderMedals(); }
+      else if (a === 'ptClear') { m.pts = []; touch(); renderMedals(); }
       else if (a === 'csv') exportCsv();
       else if (a === 'saveImg') saveImage(t);
       else if (a === 'hdel') { state.history = state.history.filter(function (x) { return x.id !== t.dataset.hid; }); touch(); renderHist(); }
@@ -772,7 +868,7 @@ details[open] > summary::after { content: "閉じる"; }
         return;
       }
       if (t.id === 'reset') {
-        m.games = 0; m.big = 0; m.reg = 0; m.grapeGames = 0; m.grape = 0; m.cherry = 0; m.bell = 0; m.clown = 0; m.replay = 0; m.miss = 0; taps[m.id] = [];
+        m.games = 0; m.big = 0; m.reg = 0; m.grapeGames = 0; m.grape = 0; m.cherry = 0; m.bell = 0; m.clown = 0; m.replay = 0; m.miss = 0; m.inv = 0; m.na = 0; m.neg = false; m.pts = []; taps[m.id] = [];
       } else {
         state.machines = state.machines.filter(function (x) { return x.id !== m.id; });
         if (!state.machines.length) state.machines.push(blank('1台目', m.mach, m.shop));
@@ -788,6 +884,11 @@ details[open] > summary::after { content: "閉じる"; }
   $('grapeGames').addEventListener('input', function (e) { cur().grapeGames = num(e.target.value); touch(); renderCounts(); renderResult(); });
   $('games').addEventListener('blur', renderCounts);
   $('grapeGames').addEventListener('blur', renderCounts);
+  $('inv').addEventListener('input', function (e) { cur().inv = num(e.target.value, 9999999); touch(); renderMedals(); });
+  $('net').addEventListener('input', function (e) { cur().na = num(e.target.value, 9999999); touch(); renderMedals(); });
+  $('net').addEventListener('change', function () { addPoint(cur()); touch(); renderMedals(); });
+  $('inv').addEventListener('blur', renderMedals);
+  $('net').addEventListener('blur', renderMedals);
   $('mname').addEventListener('input', function (e) {
     cur().name = e.target.value.slice(0, 20) || '台';
     touch(); renderChips();
