@@ -15,6 +15,7 @@
   --desk: #d9dfe2;
   --paper: #f6f7f4;
   --pad: #ffffff;
+  --glass: rgba(255, 255, 255, 0.5);
   --ink: #18212b;
   --muted: #566370;
   --line: #bcc5ca;
@@ -37,6 +38,7 @@
     --desk: #0e1215;
     --paper: #171c21;
     --pad: #1f262c;
+    --glass: rgba(31, 38, 44, 0.5);
     --ink: #e7ecef;
     --muted: #9aa7b2;
     --line: #36404a;
@@ -56,6 +58,7 @@
   --desk: #0e1215;
   --paper: #171c21;
   --pad: #1f262c;
+  --glass: rgba(31, 38, 44, 0.5);
   --ink: #e7ecef;
   --muted: #9aa7b2;
   --line: #36404a;
@@ -121,14 +124,15 @@ button { font: inherit; color: inherit; }
 .top .spacer { width: 6px; }
 
 /* text board */
+.stage { position: relative; flex: 1; min-height: 0; }
 .board {
-  flex: 1; min-height: 0; position: relative; overflow-y: auto; overscroll-behavior: contain;
+  position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain;
   background: var(--paper); border: 1px solid var(--line); border-radius: 10px; cursor: text;
   user-select: none; -webkit-user-select: none;
 }
 .flow {
   display: flex; flex-wrap: wrap; align-content: flex-start; row-gap: 0;
-  min-height: 100%; padding: 8px 14px 24px;
+  min-height: 100%; padding: 8px 14px calc(var(--ph) + 24px);
   background-image: repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--lh) + 7px), var(--rule) calc(var(--lh) + 7px), var(--rule) calc(var(--lh) + 8px));
   background-position: 0 8px;
 }
@@ -159,7 +163,8 @@ button { font: inherit; color: inherit; }
 .lock { min-height: 36px; font-size: 13px; }
 
 .pad {
-  position: relative; height: var(--ph); background: var(--pad); border: 1px solid var(--line); border-radius: 8px;
+  position: absolute; left: 1px; right: 1px; bottom: 1px; z-index: 2; height: var(--ph);
+  background: var(--glass); border-top: 1px solid var(--line); border-radius: 0 0 9px 9px;
   touch-action: none; overflow: hidden;
 }
 .pad::before { content: ""; position: absolute; left: 10px; right: 10px; top: 72%; border-top: 1px dashed var(--guide); pointer-events: none; }
@@ -174,7 +179,7 @@ button { font: inherit; color: inherit; }
 /* pages view */
 .pages { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
 .app:not([data-view="pages"]) .pages { display: none; }
-.app[data-view="pages"] .board, .app[data-view="pages"] .panel { display: none; }
+.app[data-view="pages"] .stage, .app[data-view="pages"] .panel { display: none; }
 .pages-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .pages-head h1 { margin: 0; font-size: 18px; text-wrap: balance; }
 .pages-head small { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 6px; }
@@ -222,9 +227,16 @@ button { font: inherit; color: inherit; }
     <button class="btn" id="btn-set" type="button" aria-label="設定"><svg viewBox="0 0 24 24"><path d="M4 7h8M18 7h2M4 17h2M12 17h8"/><circle cx="15" cy="7" r="2.5"/><circle cx="9" cy="17" r="2.5"/></svg></button>
   </div>
 
+  <div class="stage" id="stage">
   <div class="board" id="board" aria-label="テキストボード">
     <div class="flow" id="flow"></div>
     <div class="hint" id="hint">下の欄に指やペンで書いて、手を離して少し待つと、ここに文字が並びます。</div>
+  </div>
+  <div class="pad" id="pad">
+    <canvas id="cv" aria-label="手書き入力エリア"></canvas>
+    <div class="ph" id="ph">ここに書く</div>
+    <div class="timer" id="timer"></div>
+  </div>
   </div>
 
   <div class="panel" id="panel">
@@ -243,11 +255,6 @@ button { font: inherit; color: inherit; }
         <svg id="ico-lock" viewBox="0 0 24 24" hidden><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
         <span id="lock-label">自動反映</span>
       </button>
-    </div>
-    <div class="pad" id="pad">
-      <canvas id="cv" aria-label="手書き入力エリア"></canvas>
-      <div class="ph" id="ph">ここに書く</div>
-      <div class="timer" id="timer"></div>
     </div>
     <div class="actions" id="actions">
       <button class="btn" id="btn-bs" type="button"><svg viewBox="0 0 24 24"><path d="M9 5h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6-7z"/><path d="m13 10 4 4M17 10l-4 4"/></svg>削除</button>
