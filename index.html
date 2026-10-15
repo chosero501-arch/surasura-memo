@@ -169,7 +169,7 @@ button { font: inherit; color: inherit; }
 }
 .pad::before { content: ""; position: absolute; left: 10px; right: 10px; top: 72%; border-top: 1px dashed var(--guide); pointer-events: none; }
 .pad canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; display: block; }
-.pad .ph { position: absolute; left: 14px; top: 10px; color: var(--muted); font-size: 13px; pointer-events: none; }
+.pad .ph { position: absolute; left: 14px; top: 10px; color: var(--muted); opacity: 0.4; font-size: 13px; pointer-events: none; }
 .pad.has-ink .ph { display: none; }
 .timer { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--accent); transform-origin: left center; transform: scaleX(0); pointer-events: none; }
 
@@ -835,7 +835,7 @@ button { font: inherit; color: inherit; }
   var flushing = false;
 
   function setStatus(s) {
-    var m = { local: 'この端末に保存', saving: '同期中…', synced: '同期済み', error: '同期できません', big: 'ページが大きすぎて同期できません' };
+    var m = { local: 'この端末に自動保存', saving: '同期中…', synced: '同期済み', error: '同期できません', big: 'ページが大きすぎて同期できません' };
     el.status.textContent = m[s] || '';
   }
   function queuePage(id) {
@@ -1009,9 +1009,32 @@ button { font: inherit; color: inherit; }
   }
   $('btn-save').addEventListener('click', exportPng);
 
+  function anchorDownload(req) {
+    var url = URL.createObjectURL(req.data);
+    var a = document.createElement('a');
+    a.href = url; a.download = req.filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+    return { status: 'saved' };
+  }
+  var standaloneSaver = {
+    save: async function (req) {
+      var file = null;
+      try { file = new File([req.data], req.filename, { type: 'image/png' }); } catch (e) { /* no File */ }
+      if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file] }); return { status: 'saved' }; }
+        catch (e) { if (e && e.name === 'AbortError') throw { code: 'declined' }; }
+      }
+      return anchorDownload(req);
+    }
+  };
+
   async function initDownloads() {
     try {
-      if (!window.claude || !window.claude.use) return;
+      if (!window.claude || !window.claude.use) {
+        downloads = standaloneSaver; $('btn-save').hidden = false;
+        return;
+      }
       var d = await window.claude.use('downloads');
       if (d) { downloads = d; $('btn-save').hidden = false; }
     } catch (e) { /* hide the button */ }
