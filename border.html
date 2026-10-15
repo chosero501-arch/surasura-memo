@@ -1,0 +1,507 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style><title>パチンコボーダー計算</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Doto:wght@700&display=swap">
+<style>
+/* Layout: one scrolling column. Result first, then data counter, then small-role counter, then machine tools.
+   Counts use a dot-matrix face like a hall data counter; the highest setting is the only thing in LED amber. */
+:root {
+  color-scheme: dark;
+  --bg: #0e1113;
+  --panel: #161a1d;
+  --panel2: #1e2327;
+  --line: #2c3338;
+  --ink: #e8ecee;
+  --muted: #93a0a8;
+  --led: #ffb23e;
+  --led-fg: #1a1204;
+  --bar: #39434a;
+  --danger: #ff8a7a;
+  --font: "BIZ UDPGothic", "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", sans-serif;
+  --led-font: "Doto", "Share Tech Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --bg: #e9ece8;
+    --panel: #fbfcfa;
+    --panel2: #eff2ee;
+    --line: #c9cfc9;
+    --ink: #1a2125;
+    --muted: #55616a;
+    --led: #b05400;
+    --led-fg: #ffffff;
+    --bar: #c3cbc7;
+    --danger: #b3362b;
+  }
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #e9ece8;
+  --panel: #fbfcfa;
+  --panel2: #eff2ee;
+  --line: #c9cfc9;
+  --ink: #1a2125;
+  --muted: #55616a;
+  --led: #b05400;
+  --led-fg: #ffffff;
+  --bar: #c3cbc7;
+  --danger: #b3362b;
+}
+
+html { box-sizing: border-box; }
+*, *::before, *::after { box-sizing: inherit; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 14px 40px;
+  -webkit-tap-highlight-color: transparent;
+}
+button, input, select { font: inherit; color: inherit; box-sizing: border-box; }
+/* iPhone zooms the page when a field under 16px gets focus; keep every field at 16px or more */
+input, select, textarea { font-size: 16px; }
+.num { font-size: 26px; }
+.info input[type="date"] { line-height: 1.2; }
+:focus-visible { outline: 2px solid var(--led); outline-offset: 2px; }
+.app { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+
+.head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.head h1 { flex: 1; min-width: 0; margin: 0; font-size: 19px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sync { font-size: 12px; color: var(--danger); }
+
+.chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chip { flex: none; min-height: 38px; padding: 0 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; white-space: nowrap; touch-action: manipulation; }
+.chip[aria-selected="true"] { border-color: var(--led); color: var(--led); font-weight: 700; }
+.chip.add { color: var(--muted); }
+
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; min-width: 0; }
+.card h2 { margin: 0 0 10px; font-size: 14px; color: var(--muted); font-weight: 700; letter-spacing: 0.04em; }
+
+/* result */
+.verdict { margin: 0 0 12px; font-size: 15px; min-height: 1.6em; }
+.verdict b { font-family: var(--led-font); color: var(--led); font-size: 30px; line-height: 1; margin: 0 4px; vertical-align: -3px; }
+.rows { display: grid; gap: 7px; }
+.row { display: grid; grid-template-columns: 3.4em 1fr 4.4em; align-items: center; gap: 10px; }
+.row .lbl { font-size: 14px; color: var(--muted); }
+.row .track { height: 12px; background: var(--panel2); border-radius: 3px; overflow: hidden; }
+.row .fill { height: 100%; background: var(--bar); border-radius: 3px; min-width: 2px; }
+.row .pct { text-align: right; font-variant-numeric: tabular-nums; font-size: 14px; }
+.row.top .lbl, .row.top .pct { color: var(--led); font-weight: 700; }
+.row.top .fill { background: var(--led); }
+.sums { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--line); font-size: 14px; }
+.sums span b { font-variant-numeric: tabular-nums; margin-left: 4px; }
+.note { margin: 10px 0 0; font-size: 12px; color: var(--muted); }
+.warn { color: var(--danger); }
+
+/* counters */
+.field { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px 12px; padding: 10px 0; }
+.field + .field { border-top: 1px solid var(--line); }
+.field .name { font-weight: 700; }
+.field .sub { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.num { width: 8.5em; min-height: 46px; padding: 0 12px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; text-align: right; font-family: var(--led-font); font-size: 26px; color: var(--led); font-variant-numeric: tabular-nums; }
+.step { display: flex; align-items: center; gap: 8px; }
+.step .val { min-width: 3.2em; text-align: right; font-family: var(--led-font); font-size: 30px; line-height: 1; color: var(--led); font-variant-numeric: tabular-nums; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 48px; min-height: 48px; padding: 0 14px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; user-select: none; touch-action: manipulation; }
+.btn:active { background: var(--line); }
+.btn.plus { background: var(--led); color: var(--led-fg); border-color: var(--led); font-weight: 700; font-size: 20px; }
+.btn.small { min-height: 36px; min-width: 36px; padding: 0 10px; font-size: 13px; }
+.btn.danger[data-confirm="1"] { color: var(--danger); border-color: var(--danger); }
+
+.gbar { display: grid; grid-template-columns: 1fr auto; gap: 8px 12px; align-items: center; padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--line); }
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.tile { display: grid; grid-template-rows: auto 1fr auto; justify-items: center; align-items: center; gap: 2px; min-height: 96px; padding: 8px 4px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; touch-action: manipulation; user-select: none; min-width: 0; }
+.tile:active { background: var(--line); }
+.tile .tl { font-weight: 700; font-size: 14px; }
+.tile .tag { font-weight: 400; font-size: 10px; color: var(--led); margin-left: 4px; }
+.tile .tv { font-family: var(--led-font); font-size: 32px; line-height: 1.1; color: var(--led); font-variant-numeric: tabular-nums; }
+.tile .tr { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tile.used { border-color: var(--led); }
+.tap { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.tap .big { min-height: 76px; justify-content: space-between; padding: 0 18px; background: var(--led); border-color: var(--led); color: var(--led-fg); font-weight: 700; font-size: 17px; }
+.tap .big .val { font-family: var(--led-font); font-size: 40px; line-height: 1; }
+
+details { margin: 0; }
+summary { cursor: pointer; min-height: 40px; display: flex; align-items: center; font-weight: 700; color: var(--muted); font-size: 14px; }
+summary { list-style: none; gap: 8px; }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: "▶"; color: var(--led); font-size: 12px; width: 1.2em; flex: none; }
+details[open] > summary::before { content: "▼"; }
+summary::after { content: "開く"; margin-left: auto; font-weight: 400; font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 12px; padding: 1px 10px; flex: none; }
+details[open] > summary::after { content: "閉じる"; }
+.tools { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; padding-top: 8px; }
+.tools label { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; gap: 4px; font-size: 13px; color: var(--muted); }
+.tools input[type="text"], .tools select { min-height: 44px; padding: 0 10px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; color: var(--ink); width: 100%; }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.info { display: grid; grid-template-columns: minmax(0, 1fr) 5.5em; gap: 8px; }
+.info label { display: grid; gap: 3px; font-size: 12px; color: var(--muted); min-width: 0; }
+.info label.wide { grid-column: 1 / -1; }
+.info input { -webkit-appearance: none; appearance: none; display: block; max-width: 100%; min-height: 42px; padding: 0 10px; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; color: var(--ink); width: 100%; min-width: 0; }
+.info .acts { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.hist { display: grid; gap: 0; margin-top: 8px; }
+.hrow { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.hrow .h1 { font-weight: 700; }
+.hrow .h2 { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.hrow .res { color: var(--led); font-weight: 700; }
+.chart { width: 100%; height: auto; display: block; margin-top: 8px; }
+.chart .ax { stroke: var(--line); stroke-width: 1; }
+.chart .zero { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 4 3; }
+.chart .ln { fill: none; stroke: var(--led); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.chart .dot { fill: var(--led); }
+.chart text { fill: var(--muted); font-size: 11px; font-family: var(--font); }
+.sgn { min-width: 48px; font-size: 22px; font-weight: 700; }
+.src { font-size: 12px; color: var(--muted); display: grid; gap: 6px; }
+.src table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+.src th, .src td { padding: 4px 6px; border-bottom: 1px solid var(--line); text-align: right; }
+.src th:first-child, .src td:first-child { text-align: left; }
+.src .wrap { overflow-x: auto; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+.bigline { display: flex; align-items: baseline; gap: 10px; margin: 2px 0 8px; }
+.bigline b { font-family: var(--led-font); font-size: 56px; line-height: 1; color: var(--led); font-variant-numeric: tabular-nums; }
+.bigline span { color: var(--muted); font-size: 14px; }
+.pos { color: var(--led); font-weight: 700; }
+.neg { color: var(--danger); font-weight: 700; }
+.verdict b { font-family: inherit; font-size: inherit; margin: 0; vertical-align: baseline; }
+.num.s { width: 6.2em; font-size: 20px; min-height: 46px; padding: 0 8px; }
+.hist .h2 { color: var(--muted); font-size: 12px; }
+.card > .tools { padding-top: 0; }
+</style></head><body>
+
+<main class="app" id="app">
+  <header class="head">
+    <h1>パチンコボーダー計算</h1>
+    <span class="sync" id="sync" role="status"></span>
+    <button class="btn small" type="button" id="reload" aria-label="再読み込み" title="再読み込み">↻</button>
+  </header>
+
+  <section class="card" aria-live="polite" aria-label="計算結果">
+    <h2>ボーダー(1000円あたりの回転数)</h2>
+    <div class="bigline"><b id="bMix">—</b><span>回転 / 1000円</span></div>
+    <p class="verdict" id="msg"></p>
+    <div class="sums" id="sums"></div>
+    <p class="note" id="rnote"></p>
+  </section>
+
+  <section class="card" aria-label="実戦の結果">
+    <h2>この台の実戦データ</h2>
+    <div class="field">
+      <label class="name" for="R">1000円あたりの回転数</label>
+      <input class="num" id="R" type="text" inputmode="decimal" autocomplete="off" aria-label="1000円あたりの回転数">
+    </div>
+    <div class="field">
+      <div><div class="name">計算して入れる</div><div class="sub">回転数と、使った現金から求めます</div></div>
+      <div class="step" style="gap:6px">
+        <input class="num s" id="rot" type="text" inputmode="numeric" autocomplete="off" placeholder="回転数" aria-label="回転数">
+        <input class="num s" id="yen" type="text" inputmode="numeric" autocomplete="off" placeholder="使った円" aria-label="使った金額(円)">
+      </div>
+    </div>
+    <div class="btns"><button class="btn small" type="button" id="calcR">この2つから回転率を入れる</button></div>
+    <div class="field">
+      <label class="name" for="spd">1時間の回転数</label>
+      <input class="num" id="spd" type="text" inputmode="numeric" autocomplete="off" aria-label="1時間の回転数">
+    </div>
+  </section>
+
+  <section class="card" aria-label="機種のスペック">
+    <h2>機種のスペック</h2>
+    <div class="tools">
+      <label>機種名(メモ用)
+        <input type="text" id="name" autocomplete="off" maxlength="30" placeholder="例 ○○ 319ver">
+      </label>
+      <label>初当たり確率(1/ ○○)
+        <input type="text" id="p" inputmode="decimal" autocomplete="off" placeholder="例 319.7">
+      </label>
+      <label>出玉の入れ方
+        <select id="mode">
+          <option value="direct">初当たり1回の期待出玉を、そのまま入れる</option>
+          <option value="calc">1回の出玉 × 平均の連チャン数で求める</option>
+        </select>
+      </label>
+      <label id="lE">初当たり1回あたりの期待出玉(玉・連チャン込み)
+        <input type="text" id="E" inputmode="decimal" autocomplete="off" placeholder="例 4500">
+      </label>
+      <label id="lG" hidden>1回の大当たりの出玉(玉)
+        <input type="text" id="g" inputmode="decimal" autocomplete="off" placeholder="例 1500">
+      </label>
+      <label id="lC" hidden>初当たり1回あたりの大当たり回数(連チャン込み)
+        <input type="text" id="chain" inputmode="decimal" autocomplete="off" placeholder="例 3.0">
+      </label>
+      <div class="btns">
+        <button class="btn small" type="button" id="saveSpec">この機種を保存</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" aria-label="お店の条件">
+    <h2>お店の条件</h2>
+    <div class="tools">
+      <label>貸玉料金
+        <select id="kasi">
+          <option value="4">4円パチンコ(1玉4円)</option>
+          <option value="1">1円パチンコ(1玉1円)</option>
+        </select>
+      </label>
+      <label>交換率(100円あたりの玉数)
+        <select id="kan"></select>
+      </label>
+      <label>交換率を直接入れる(100円あたりの玉数)
+        <input type="text" id="kanC" inputmode="decimal" autocomplete="off" placeholder="入れると、上の選択より優先します">
+      </label>
+      <label>持ち玉で遊ぶ割合(%)
+        <input type="text" id="mochi" inputmode="numeric" autocomplete="off" placeholder="0〜100">
+      </label>
+    </div>
+  </section>
+
+  <section class="card" aria-label="保存した機種">
+    <details>
+      <summary id="savedSum">保存した機種</summary>
+      <div class="hist" id="saved"></div>
+    </details>
+  </section>
+
+  <section class="card" aria-label="計算の考え方">
+    <details>
+      <summary>計算の考え方</summary>
+      <div class="src" style="padding-top:8px">
+        <div>1回転の価値(円) = 期待出玉 × 1玉の交換価値 ÷ 初当たり確率の分母</div>
+        <div>ボーダー(回転/1000円) = 1000 × 確率の分母 × 玉の価格 ÷ (期待出玉 × 交換価値 × 貸玉料金)</div>
+        <div>玉の価格は、現金で打つ分は貸玉料金、持ち玉で打つ分は交換価値で計算します。等価で現金のみなら、ボーダーは「250 × 確率の分母 ÷ 期待出玉」(4円)です。</div>
+        <div>期待出玉は、連チャンを含めた、1回の初当たりから得られる実質の出玉(払出から打ち込みを引いた玉)を入れてください。電サポ中の玉の減りも引いた数字が理想です。</div>
+        <div>ボーダーは、ホールの釘やヘソ賞球・電サポ中の増減などの違いを細かくは反映しない、目安の数字です。期待収支も、入力した前提どおりに出た場合の見込みです。</div>
+      </div>
+    </details>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  /*MATH*/
+  function calc(i) {
+    var out = { ok: false };
+    var p = i.p, E = i.mode === 'calc' ? i.g * i.chain : i.E;
+    var c = i.kan > 0 ? 100 / i.kan : 0;           // 1玉の交換価値(円)
+    var k = i.kasi;                                  // 貸玉料金(円)
+    if (!(p > 0) || !(E > 0) || !(c > 0) || !(k > 0)) return out;
+    var r = Math.min(1, Math.max(0, i.mochi / 100));
+    var pm = (1 - r) * k + r * c;                    // 玉の価格(円)
+    out.ok = true; out.E = E; out.c = c; out.k = k; out.pm = pm;
+    out.value = E * c / p;                           // 1回転の価値(円)
+    out.bCash = 1000 * p / (E * c);
+    out.bMochi = 1000 * p / (E * k);
+    out.bMix = 1000 * p * pm / (E * c * k);
+    if (i.R > 0) {
+      var cost = pm * 1000 / (i.R * k);              // 1回転にかかる費用(円)
+      out.diff = i.R - out.bMix;
+      out.profitSpin = out.value - cost;
+      out.profit1000 = i.R * out.profitSpin;
+      out.profitHour = i.spd > 0 ? i.spd * out.profitSpin : null;
+    }
+    return out;
+  }
+  /*ENDMATH*/
+
+  var LS_KEY = 'pachi-border-v1';
+  var KAN = {
+    '4': [[25, '等価(25玉)'], [27.5, '27.5玉'], [28, '28玉'], [30, '30玉'], [33, '33玉']],
+    '1': [[100, '等価(100玉)'], [110, '110玉'], [115, '115玉'], [120, '120玉']]
+  };
+  function $(id) { return document.getElementById(id); }
+  function clone(x) { return JSON.parse(JSON.stringify(x)); }
+  function newId() { return 's_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
+  function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function fnum(v) {
+    var t = String(v == null ? '' : v).replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); })
+      .replace(/[．。]/g, '.').replace(/[,，\s]/g, '');
+    var n = parseFloat(t);
+    return isNaN(n) || n < 0 ? 0 : n;
+  }
+  function fmt(n, d) { return Number(n).toLocaleString('ja-JP', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); }
+  function sgn(n, d) { return (n > 0 ? '+' : n < 0 ? '−' : '') + fmt(Math.abs(n), d); }
+
+  var DEF = { name: '', p: '', mode: 'direct', E: '', g: '', chain: '', kasi: '4', kan: '25', kanC: '', mochi: '', R: '', rot: '', yen: '', spd: '200' };
+  function normIn(x) {
+    var o = clone(DEF); x = x || {};
+    Object.keys(DEF).forEach(function (k) { if (x[k] != null) o[k] = String(x[k]).slice(0, 40); });
+    if (o.mode !== 'calc') o.mode = 'direct';
+    if (o.kasi !== '1') o.kasi = '4';
+    return o;
+  }
+  function normalize(st) {
+    if (!st || typeof st !== 'object') return null;
+    var o = { inp: normIn(st.inp), saved: [], updated: Number(st.updated) || 0 };
+    (Array.isArray(st.saved) ? st.saved : []).slice(0, 100).forEach(function (s) {
+      o.saved.push({ id: String(s.id || newId()), inp: normIn(s.inp) });
+    });
+    return o;
+  }
+  var state = { inp: clone(DEF), saved: [], updated: 0 };
+  try {
+    var raw = localStorage.getItem(LS_KEY);
+    if (raw) { var n0 = normalize(JSON.parse(raw)); if (n0) state = n0; }
+  } catch (e) { /* storage unavailable */ }
+
+  function saveLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } }
+  function touch() { state.updated = Date.now(); saveLocal(); queue(); }
+
+  function numbers() {
+    var s = state.inp;
+    var kan = fnum(s.kanC) > 0 ? fnum(s.kanC) : fnum(s.kan);
+    return { p: fnum(s.p), mode: s.mode, E: fnum(s.E), g: fnum(s.g), chain: fnum(s.chain), kasi: Number(s.kasi), kan: kan, mochi: fnum(s.mochi), R: fnum(s.R), spd: fnum(s.spd) };
+  }
+
+  function setIfIdle(el, v) { if (document.activeElement !== el) el.value = v; }
+  var IDS = ['name', 'p', 'E', 'g', 'chain', 'kanC', 'mochi', 'R', 'rot', 'yen', 'spd'];
+
+  function renderKan() {
+    var list = KAN[state.inp.kasi], h = '', found = false;
+    list.forEach(function (x) { h += '<option value="' + x[0] + '">' + x[1] + '</option>'; if (String(x[0]) === state.inp.kan) found = true; });
+    $('kan').innerHTML = h;
+    if (!found) state.inp.kan = String(list[0][0]);
+    $('kan').value = state.inp.kan;
+  }
+  function renderInputs() {
+    IDS.forEach(function (id) { setIfIdle($(id), state.inp[id]); });
+    $('mode').value = state.inp.mode;
+    $('kasi').value = state.inp.kasi;
+    renderKan();
+    var direct = state.inp.mode === 'direct';
+    $('lE').hidden = !direct; $('lG').hidden = direct; $('lC').hidden = direct;
+  }
+
+  function renderResult() {
+    var r = calc(numbers());
+    var bMix = $('bMix'), sums = $('sums'), msg = $('msg'), note = $('rnote');
+    if (!r.ok) {
+      bMix.textContent = '—'; sums.innerHTML = ''; note.textContent = '';
+      msg.textContent = '初当たり確率と期待出玉、交換率を入れると、ボーダーを計算します。';
+      return;
+    }
+    bMix.textContent = fmt(r.bMix, 1);
+    var h = '<span>現金のみ<b>' + fmt(r.bCash, 1) + '</b></span><span>持ち玉のみ<b>' + fmt(r.bMochi, 1) + '</b></span>';
+    h += '<span>1回転の価値<b>' + fmt(r.value, 1) + '円</b></span><span>期待出玉<b>' + fmt(r.E) + '玉</b></span>';
+    sums.innerHTML = h;
+    var n = numbers(), mochi = Math.min(100, n.mochi);
+    note.textContent = '持ち玉の割合 ' + fmt(mochi) + '%、1玉の交換価値 ' + fmt(r.c, 2) + '円で計算しています。持ち玉のみの値は、貸玉1000円分(' + fmt(1000 / r.k) + '玉)あたりの回転数です。';
+    if (r.diff == null) { msg.textContent = '実戦の回転率を入れると、ボーダーとの差と期待収支を出します。'; return; }
+    var good = r.diff >= 0;
+    var m = '<span class="' + (good ? 'pos' : 'neg') + '">回転率 ' + fmt(n.R, 1) + '(ボーダー' + (good ? '超え' : '割れ') + ' ' + sgn(r.diff, 1) + ')</span>';
+    m += '<br>期待収支 <b class="' + (good ? 'pos' : 'neg') + '">' + sgn(r.profit1000) + '円</b> / 1000円';
+    if (r.profitHour != null) m += '　時給 <b class="' + (good ? 'pos' : 'neg') + '">' + sgn(r.profitHour) + '円</b>';
+    msg.innerHTML = m;
+  }
+
+  function renderSaved() {
+    $('savedSum').textContent = '保存した機種(' + state.saved.length + '件)';
+    if (!state.saved.length) { $('saved').innerHTML = '<div class="h2">まだありません。「機種のスペック」で保存できます。</div>'; return; }
+    var h = '';
+    state.saved.forEach(function (s) {
+      var E = s.inp.mode === 'calc' ? fnum(s.inp.g) * fnum(s.inp.chain) : fnum(s.inp.E);
+      h += '<div class="hrow"><div><div class="h1">' + esc(s.inp.name || '(名前なし)') + '</div>' +
+        '<div class="h2">1/' + esc(s.inp.p || '—') + '  期待出玉 ' + (E ? fmt(E) : '—') + '玉</div></div>' +
+        '<div class="btns"><button class="btn small" type="button" data-act="load" data-sid="' + esc(s.id) + '">呼び出す</button>' +
+        '<button class="btn small" type="button" data-act="del" data-sid="' + esc(s.id) + '" aria-label="削除">削除</button></div></div>';
+    });
+    $('saved').innerHTML = h;
+  }
+  function renderAll() { renderInputs(); renderResult(); renderSaved(); }
+
+  /* ---------- events ---------- */
+  IDS.forEach(function (id) {
+    $(id).addEventListener('input', function (e) { state.inp[id] = e.target.value; touch(); renderResult(); });
+  });
+  $('mode').addEventListener('change', function (e) { state.inp.mode = e.target.value; touch(); renderInputs(); renderResult(); });
+  $('kasi').addEventListener('change', function (e) { state.inp.kasi = e.target.value; state.inp.kan = String(KAN[e.target.value][0][0]); touch(); renderInputs(); renderResult(); });
+  $('kan').addEventListener('change', function (e) { state.inp.kan = e.target.value; touch(); renderResult(); });
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest ? e.target.closest('button') : null;
+    if (!t) return;
+    if (t.id === 'reload') { location.reload(); return; }
+    if (t.id === 'calcR') {
+      var rot = fnum(state.inp.rot), yen = fnum(state.inp.yen);
+      if (rot > 0 && yen > 0) { state.inp.R = (Math.round(rot / yen * 10000) / 10).toString(); touch(); renderInputs(); renderResult(); }
+      return;
+    }
+    if (t.id === 'saveSpec') {
+      var i = state.inp;
+      var spec = normIn({ name: i.name, p: i.p, mode: i.mode, E: i.E, g: i.g, chain: i.chain });
+      var hit = state.saved.filter(function (s) { return spec.name && s.inp.name === spec.name; })[0];
+      if (hit) { hit.inp = spec; } else state.saved.unshift({ id: newId(), inp: spec });
+      state.saved = state.saved.slice(0, 100);
+      touch(); renderSaved();
+      t.textContent = '保存しました'; setTimeout(function () { t.textContent = 'この機種を保存'; }, 1500);
+      return;
+    }
+    if (t.dataset.act === 'load') {
+      var s = state.saved.filter(function (x) { return x.id === t.dataset.sid; })[0];
+      if (s) {
+        ['name', 'p', 'mode', 'E', 'g', 'chain'].forEach(function (k) { state.inp[k] = s.inp[k]; });
+        touch(); renderAll();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      return;
+    }
+    if (t.dataset.act === 'del') {
+      state.saved = state.saved.filter(function (x) { return x.id !== t.dataset.sid; });
+      touch(); renderSaved();
+    }
+  });
+
+  /* ---------- sync (private to each signed-in viewer; local only elsewhere) ---------- */
+  var col = null, dirty = false, flushT = null, flushing = false;
+  function setSync(t) { $('sync').textContent = t; }
+  function queue() {
+    if (!col) return;
+    dirty = true; clearTimeout(flushT); flushT = setTimeout(flush, 1000);
+  }
+  async function flush() {
+    if (!col || flushing || !dirty) return;
+    flushing = true; dirty = false;
+    var retry = false;
+    try {
+      await col.doc('border').set({ v: 1, updated: state.updated, inp: state.inp, saved: state.saved });
+      setSync('');
+    } catch (e) {
+      setSync('同期できません');
+      if (e && (e.code === 'unavailable' || e.code === 'resource_exhausted')) { dirty = true; retry = true; }
+    } finally {
+      flushing = false;
+      if (dirty) { clearTimeout(flushT); flushT = setTimeout(flush, retry ? 8000 : 1000); }
+    }
+  }
+  async function initCloud() {
+    try {
+      if (!window.claude || !window.claude.use) return;
+      var db = await window.claude.use('db');
+      var user = await window.claude.use('user');
+      if (!db || !user) return;
+      var uid = await user.id();
+      if (!uid) return;
+      col = db.collection('data/users/' + uid);
+      col.doc('border').onSnapshot(function (snap) {
+        if (!snap.exists) { if (state.updated > 0) queue(); return; }
+        var v = snap.data(), remoteT = Number(v.updated) || 0;
+        if (remoteT > state.updated) {
+          var next = normalize(clone(v));
+          if (next) { state = next; saveLocal(); renderAll(); }
+        } else if (state.updated > remoteT) queue();
+      }, function () { col = null; });
+    } catch (e) { col = null; }
+  }
+
+  renderAll();
+  initCloud();
+})();
+</script>
+</body></html>
