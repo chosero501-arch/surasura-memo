@@ -153,14 +153,14 @@ button { font: inherit; color: inherit; }
 .panel { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 8px; display: flex; flex-direction: column; gap: 8px; }
 .pens { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .pen-group { display: flex; align-items: center; gap: 4px; }
-.pen-group .sep { width: 1px; height: 24px; background: var(--line); margin: 0 6px; }
-.swatch { width: 36px; height: 36px; min-width: 36px; padding: 0; border-radius: 50%; }
-.swatch i { display: block; width: 18px; height: 18px; border-radius: 50%; }
+.pen-group .sep { width: 1px; height: 22px; background: var(--line); margin: 0 3px; }
+.swatch { width: 34px; height: 34px; min-width: 34px; min-height: 34px; padding: 0; border-radius: 50%; }
+.swatch i { display: block; width: 16px; height: 16px; border-radius: 50%; }
 .swatch[data-c="k"] i { background: var(--pen-k); }
 .swatch[data-c="r"] i { background: var(--pen-r); }
 .swatch[data-c="g"] i { background: var(--pen-g); }
-.wbtn { width: 36px; min-width: 36px; padding: 0; min-height: 36px; }
-.lock { min-height: 36px; font-size: 13px; }
+.wbtn { width: 34px; min-width: 34px; padding: 0; min-height: 34px; }
+.lock { min-height: 34px; padding: 0 10px; font-size: 13px; }
 
 .pad {
   position: absolute; left: 1px; right: 1px; bottom: 1px; z-index: 2; height: var(--ph);
@@ -253,7 +253,7 @@ button { font: inherit; color: inherit; }
       <button class="btn lock" id="btn-lock" type="button" aria-pressed="false" aria-label="自動反映と手動反映を切り替え">
         <svg id="ico-unlock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/></svg>
         <svg id="ico-lock" viewBox="0 0 24 24" hidden><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
-        <span id="lock-label">自動反映</span>
+        <span id="lock-label">自動</span>
       </button>
     </div>
     <div class="actions" id="actions">
@@ -725,7 +725,7 @@ button { font: inherit; color: inherit; }
     $('btn-lock').setAttribute('aria-pressed', settings.manual ? 'true' : 'false');
     $('ico-lock').hidden = !settings.manual;
     $('ico-unlock').hidden = settings.manual;
-    el.lockLabel.textContent = settings.manual ? '手動反映' : '自動反映';
+    el.lockLabel.textContent = settings.manual ? '手動' : '自動';
     el.commit.hidden = !settings.manual;
     $('set-delay').value = settings.delay;
     $('out-delay').textContent = settings.delay.toFixed(1) + '秒';
