@@ -217,17 +217,19 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
   </section>
 
   <section class="card" aria-label="日付・店舗・台番">
-    <div class="info">
-      <label>日付<input type="date" id="mdate"></label>
+    <details open>
+    <summary id="infoSum">日付・店舗名・台番</summary>
+    <div class="info" style="padding-top:8px">
+      <label>日付(自動)<input type="text" id="mdate" readonly tabindex="-1" aria-readonly="true" style="color:var(--muted);pointer-events:none"></label>
       <label>台番<input type="text" id="mno" inputmode="numeric" autocomplete="off" maxlength="10" placeholder="例 123"></label>
       <label class="wide">店舗名<input type="text" id="mshop" autocomplete="off" maxlength="30" placeholder="例 ○○ホール"></label>
     </div>
+    </details>
   </section>
 
 
   <section class="card">
-    <details>
-      <summary>台の管理・ぶどうの設定</summary>
+    <h2>台の管理・ぶどうの設定</h2>
       <div class="tools">
         <label>台の名前
           <input type="text" id="mname" autocomplete="off" maxlength="20">
@@ -243,7 +245,6 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
           <button class="btn small danger" type="button" id="remove">この台を削除</button>
         </div>
       </div>
-    </details>
   </section>
 
   <section class="card" aria-label="保存">
@@ -667,6 +668,7 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
     var m = cur();
     setIfIdle($('mname'), m.name);
     setIfIdle($('mdate'), m.date);
+    $('infoSum').textContent = '日付・店舗名・台番  ' + m.date.slice(5).replace('-', '/') + (m.shop ? '  ' + m.shop : '') + (m.no ? '  ' + m.no + '番' : '');
     setIfIdle($('mshop'), m.shop);
     setIfIdle($('mno'), m.no);
     var sp = machineOf(m.mach);
@@ -774,9 +776,8 @@ summary { cursor: pointer; min-height: 40px; display: flex; align-items: center;
     cur().name = e.target.value.slice(0, 20) || '台';
     touch(); renderChips();
   });
-  $('mdate').addEventListener('change', function (e) { if (e.target.value) { cur().date = e.target.value; touch(); } });
-  $('mshop').addEventListener('input', function (e) { cur().shop = e.target.value.slice(0, 30); touch(); });
-  $('mno').addEventListener('input', function (e) { cur().no = e.target.value.slice(0, 10); touch(); renderChips(); });
+  $('mshop').addEventListener('input', function (e) { cur().shop = e.target.value.slice(0, 30); touch(); renderTools(); });
+  $('mno').addEventListener('input', function (e) { cur().no = e.target.value.slice(0, 10); touch(); renderChips(); renderTools(); });
   document.addEventListener('visibilitychange', function () { if (!document.hidden && rollover()) renderAll(); });
   $('preset').addEventListener('change', function (e) { cur().preset = e.target.value; touch(); renderCounts(); renderResult(); });
   $('mach').addEventListener('change', function (e) {
