@@ -220,6 +220,10 @@ details[open] > summary::after { content: "閉じる"; }
         <button class="btn plus" type="button" data-act="reg+" aria-label="REGを1増やす">+</button>
       </div>
     </div>
+    <div class="field">
+      <div><div class="name">ペカり回数(合算値)</div><div class="sub" id="totRate"></div></div>
+      <div class="step"><span class="val" id="totVal">0</span></div>
+    </div>
   </section>
 
   <section class="card" aria-label="日付・店舗・台番">
@@ -487,6 +491,11 @@ details[open] > summary::after { content: "閉じる"; }
     var bR = '設定1〜6: 1/' + sp.big[0].toFixed(0) + '〜1/' + sp.big[5].toFixed(0);
     var rR = '設定1〜6: 1/' + sp.reg[0].toFixed(0) + '〜1/' + sp.reg[5].toFixed(0);
     $('bigRate').textContent = m.big && m.games ? '1/' + (m.games / m.big).toFixed(1) + '(' + bR + ')' : bR;
+    var tot = m.big + m.reg;
+    var t0 = 1 / (1 / sp.big[0] + 1 / sp.reg[0]), t5 = 1 / (1 / sp.big[5] + 1 / sp.reg[5]);
+    var tR = '設定1〜6: 1/' + t0.toFixed(0) + '〜1/' + t5.toFixed(0);
+    $('totVal').textContent = tot;
+    $('totRate').textContent = tot && m.games ? '1/' + (m.games / tot).toFixed(1) + '(' + tR + ')' : tR;
     $('regRate').textContent = m.reg && m.games ? '1/' + (m.games / m.reg).toFixed(1) + '(' + rR + ')' : rR;
   }
 
@@ -603,10 +612,10 @@ details[open] > summary::after { content: "閉じる"; }
     var W = 760, P = 36, y = 0, best = 0;
     for (var i = 1; i < 6; i++) if (r.p[i] > r.p[best]) best = i;
     var c = document.createElement('canvas'), dpr = 2;
-    c.width = W * dpr; c.height = 1180 * dpr;
+    c.width = W * dpr; c.height = 1260 * dpr;
     var g = c.getContext('2d'); g.scale(dpr, dpr);
     var F = '"Hiragino Sans","Yu Gothic UI","Noto Sans JP","BIZ UDPGothic",sans-serif';
-    g.fillStyle = '#fbfcfa'; g.fillRect(0, 0, W, 1180);
+    g.fillStyle = '#fbfcfa'; g.fillRect(0, 0, W, 1260);
     function t(txt, x, yy, size, col, bold, align) { g.font = (bold ? '700 ' : '400 ') + size + 'px ' + F; g.fillStyle = col; g.textAlign = align || 'left'; g.fillText(txt, x, yy); }
     var INK = '#1a2125', MUT = '#55616a', LED = '#b05400', LINE = '#c9cfc9';
     y = 56; t('ジャグラーシリーズ設定判別カウンター', P, y, 26, INK, true);
@@ -636,6 +645,7 @@ details[open] > summary::after { content: "閉じる"; }
     y += 44; t('総回転数  ' + fmt(m.games) + 'G', P, y, 26, INK, true);
     y += 44; t('BIG  ' + m.big + '回  ' + rate(m.big, m.games), P, y, 24, INK);
     y += 40; t('REG  ' + m.reg + '回  ' + rate(m.reg, m.games), P, y, 24, INK);
+    y += 40; t('ペカり回数(合算値)  ' + (m.big + m.reg) + '回  ' + rate(m.big + m.reg, m.games), P, y, 24, INK);
     y += 30; g.fillStyle = LINE; g.fillRect(P, y, W - 2 * P, 2);
     y += 46; t('小役カウンター(数えたゲーム数 ' + fmt(m.grapeGames) + 'G)', P, y, 20, MUT, true);
     var gUsed = m.preset !== 'off' && !!sp.grape[m.preset];
