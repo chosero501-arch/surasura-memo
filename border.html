@@ -214,6 +214,10 @@ details[open] > summary::after { content: "閉じる"; }
   <section class="card" aria-label="機種のスペック">
     <h2>機種のスペック</h2>
     <div class="tools">
+      <label>主な機種から選ぶ
+        <select id="preset"></select>
+      </label>
+      <p class="note" style="margin:0">選ぶと、機種名・初当たり確率・期待出玉が自動で入ります。期待出玉は、公表されている等価(4円)のボーダーから逆算した目安で、実際の出玉の数字ではありません。出典はDMMぱちタウンのボーダー(2026年2月の記事時点)です。ホールの条件で変わるので、数字がわかるときは自分で入れ直してください。</p>
       <label>機種名(メモ用)
         <input type="text" id="name" autocomplete="off" maxlength="30" placeholder="例 ○○ 319ver">
       </label>
@@ -312,6 +316,30 @@ details[open] > summary::after { content: "閉じる"; }
   }
   /*ENDMATH*/
 
+  /* 主な機種: [名前, 初当たり確率の分母, 等価(4円)ボーダー] 出典: DMMぱちタウン(2026/02/27の記事) */
+  var PRESETS = [
+    ['e東京リベンジャーズ', 319.7, 16.5],
+    ['e Re:ゼロから始める異世界生活 season2', 349.9, 16.6],
+    ['P Re:ゼロから始める異世界生活 鬼がかりver.', 319.6, 16.7],
+    ['e東京喰種', 399, 16.7],
+    ['e新世紀エヴァンゲリオン ～はじまりの記憶～', 399.9, 16.7],
+    ['e北斗の拳11 暴凶星', 399.8, 16.8],
+    ['ぱちんこ シン・エヴァンゲリオン Type レイ', 319.7, 17.1],
+    ['e牙狼12 黄金騎士極限', 437.49, 17.2],
+    ['Pスーパー海物語 IN 沖縄6', 319.6, 17.6],
+    ['P大海物語5', 319.6, 17.7],
+    ['P北斗の拳 暴凶星', 319.7, 17.7],
+    ['P大海物語5 スペシャル', 319.6, 17.7],
+    ['新世紀エヴァンゲリオン ～未来への咆哮～', 319.7, 17.8],
+    ['eFからくりサーカス2 魔王ver.', 399.9, 18.1],
+    ['PA大海物語5 With アグネス・ラム', 99.9, 18.3],
+    ['PA新海物語', 99.9, 18.5],
+    ['PAスーパー海物語 IN 沖縄5 with アイマリン', 99.9, 18.6],
+    ['P大海物語4 スペシャル BLACK', 199.8, 18.7],
+    ['P大海物語4 スペシャル', 319.6, 20.2]
+  ];
+  function presetE(x) { return Math.round(250 * x[1] / x[2] / 10) * 10; }
+
   var LS_KEY = 'pachi-border-v1';
   var KAN = {
     '4': [[25, '等価(25玉)'], [27.5, '27.5玉'], [28, '28玉'], [30, '30玉'], [33, '33玉']],
@@ -371,6 +399,11 @@ details[open] > summary::after { content: "閉じる"; }
     if (!found) state.inp.kan = String(list[0][0]);
     $('kan').value = state.inp.kan;
   }
+  function renderPresets() {
+    var h = '<option value="">選んでください</option>';
+    PRESETS.forEach(function (x, i) { h += '<option value="' + i + '">' + x[0] + '(1/' + x[1] + ')</option>'; });
+    $('preset').innerHTML = h;
+  }
   function renderInputs() {
     IDS.forEach(function (id) { setIfIdle($(id), state.inp[id]); });
     $('mode').value = state.inp.mode;
@@ -423,6 +456,12 @@ details[open] > summary::after { content: "閉じる"; }
   });
   $('mode').addEventListener('change', function (e) { state.inp.mode = e.target.value; touch(); renderInputs(); renderResult(); });
   $('kasi').addEventListener('change', function (e) { state.inp.kasi = e.target.value; state.inp.kan = String(KAN[e.target.value][0][0]); touch(); renderInputs(); renderResult(); });
+  $('preset').addEventListener('change', function (e) {
+    var x = PRESETS[Number(e.target.value)];
+    if (!x) return;
+    state.inp.name = x[0]; state.inp.p = String(x[1]); state.inp.mode = 'direct'; state.inp.E = String(presetE(x));
+    touch(); renderInputs(); renderResult(); e.target.value = '';
+  });
   $('kan').addEventListener('change', function (e) { state.inp.kan = e.target.value; touch(); renderResult(); });
   document.addEventListener('click', function (e) {
     var t = e.target.closest ? e.target.closest('button') : null;
@@ -500,6 +539,7 @@ details[open] > summary::after { content: "閉じる"; }
     } catch (e) { col = null; }
   }
 
+  renderPresets();
   renderAll();
   initCloud();
 })();
