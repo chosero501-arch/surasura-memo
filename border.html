@@ -245,6 +245,27 @@ details[open] > summary::after { content: "閉じる"; }
     </div>
   </section>
 
+  <section class="card" aria-label="1R出玉の補正">
+    <h2>1R出玉の補正(オーバー入賞など)</h2>
+    <div class="tools">
+      <label>この機種のボーダーが前提にしている1R出玉(個)
+        <input type="text" id="r0" inputmode="decimal" autocomplete="off" placeholder="例 135">
+      </label>
+      <label>この台の実際の1R出玉(個)
+        <input type="text" id="r1" inputmode="decimal" autocomplete="off" placeholder="入れると期待出玉を補正します">
+      </label>
+      <div class="field" style="padding:0">
+        <div><div class="name" style="font-size:14px">実測から求める</div><div class="sub">数えたラウンド数と、その出玉の合計</div></div>
+        <div class="step" style="gap:6px">
+          <input class="num s" id="rd" type="text" inputmode="numeric" autocomplete="off" placeholder="R数" aria-label="ラウンド数">
+          <input class="num s" id="rb" type="text" inputmode="numeric" autocomplete="off" placeholder="出玉" aria-label="出玉の合計">
+        </div>
+      </div>
+      <div class="btns"><button class="btn small" type="button" id="calcRound">この2つから1R出玉を入れる</button></div>
+      <p class="note" style="margin:0">海物語などは、オーバー入賞で1Rの出玉が台によって変わります。実際の1R出玉を入れると、期待出玉を「実際 ÷ 前提」の倍率で補正して、ボーダーと期待収支を計算し直します。「期待出玉をそのまま入れる」を選んでいるときに使えます。大当たり中の出玉に比例する、という簡易的な補正です(1GEKIのボーダー表も、1R出玉が変わるとほぼこの比で動きます)。</p>
+    </div>
+  </section>
+
   <section class="card" aria-label="お店の条件">
     <h2>お店の条件</h2>
     <div class="tools">
@@ -280,6 +301,7 @@ details[open] > summary::after { content: "閉じる"; }
         <div>1回転の価値(円) = 期待出玉 × 1玉の交換価値 ÷ 初当たり確率の分母</div>
         <div>ボーダー(回転/1000円) = 1000 × 確率の分母 × 玉の価格 ÷ (期待出玉 × 交換価値 × 貸玉料金)</div>
         <div>玉の価格は、現金で打つ分は貸玉料金、持ち玉で打つ分は交換価値で計算します。等価で現金のみなら、ボーダーは「250 × 確率の分母 ÷ 期待出玉」(4円)です。</div>
+        <div>1R出玉の補正: 補正後の期待出玉 = 期待出玉 × (この台の実際の1R出玉 ÷ ボーダーが前提にしている1R出玉)。</div>
         <div>期待出玉は、連チャンを含めた、1回の初当たりから得られる実質の出玉(払出から打ち込みを引いた玉)を入れてください。電サポ中の玉の減りも引いた数字が理想です。</div>
         <div>ボーダーは、ホールの釘やヘソ賞球・電サポ中の増減などの違いを細かくは反映しない、目安の数字です。期待収支も、入力した前提どおりに出た場合の見込みです。</div>
       </div>
@@ -295,12 +317,14 @@ details[open] > summary::after { content: "閉じる"; }
   function calc(i) {
     var out = { ok: false };
     var p = i.p, E = i.mode === 'calc' ? i.g * i.chain : i.E;
+    var f = (i.mode !== 'calc' && i.r0 > 0 && i.r1 > 0) ? i.r1 / i.r0 : 1;   // 1R出玉の補正(オーバー入賞など)
+    E = E * f;
     var c = i.kan > 0 ? 100 / i.kan : 0;           // 1玉の交換価値(円)
     var k = i.kasi;                                  // 貸玉料金(円)
     if (!(p > 0) || !(E > 0) || !(c > 0) || !(k > 0)) return out;
     var r = Math.min(1, Math.max(0, i.mochi / 100));
     var pm = (1 - r) * k + r * c;                    // 玉の価格(円)
-    out.ok = true; out.E = E; out.c = c; out.k = k; out.pm = pm;
+    out.ok = true; out.E = E; out.f = f; out.c = c; out.k = k; out.pm = pm;
     out.value = E * c / p;                           // 1回転の価値(円)
     out.bCash = 1000 * p / (E * c);
     out.bMochi = 1000 * p / (E * k);
@@ -374,7 +398,7 @@ details[open] > summary::after { content: "閉じる"; }
   function fmt(n, d) { return Number(n).toLocaleString('ja-JP', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); }
   function sgn(n, d) { return (n > 0 ? '+' : n < 0 ? '−' : '') + fmt(Math.abs(n), d); }
 
-  var DEF = { name: '', p: '', mode: 'direct', E: '', g: '', chain: '', kasi: '4', kan: '25', kanC: '', mochi: '', R: '', rot: '', yen: '', spd: '200' };
+  var DEF = { name: '', p: '', mode: 'direct', E: '', g: '', chain: '', r0: '135', r1: '', rd: '', rb: '', kasi: '4', kan: '25', kanC: '', mochi: '', R: '', rot: '', yen: '', spd: '200' };
   function normIn(x) {
     var o = clone(DEF); x = x || {};
     Object.keys(DEF).forEach(function (k) { if (x[k] != null) o[k] = String(x[k]).slice(0, 40); });
@@ -402,11 +426,11 @@ details[open] > summary::after { content: "閉じる"; }
   function numbers() {
     var s = state.inp;
     var kan = fnum(s.kanC) > 0 ? fnum(s.kanC) : fnum(s.kan);
-    return { p: fnum(s.p), mode: s.mode, E: fnum(s.E), g: fnum(s.g), chain: fnum(s.chain), kasi: Number(s.kasi), kan: kan, mochi: fnum(s.mochi), R: fnum(s.R), spd: fnum(s.spd) };
+    return { p: fnum(s.p), mode: s.mode, E: fnum(s.E), g: fnum(s.g), chain: fnum(s.chain), kasi: Number(s.kasi), kan: kan, mochi: fnum(s.mochi), R: fnum(s.R), spd: fnum(s.spd), r0: fnum(s.r0), r1: fnum(s.r1) };
   }
 
   function setIfIdle(el, v) { if (document.activeElement !== el) el.value = v; }
-  var IDS = ['name', 'p', 'E', 'g', 'chain', 'kanC', 'mochi', 'R', 'rot', 'yen', 'spd'];
+  var IDS = ['name', 'p', 'E', 'g', 'chain', 'r0', 'r1', 'rd', 'rb', 'kanC', 'mochi', 'R', 'rot', 'yen', 'spd'];
 
   function renderKan() {
     var list = KAN[state.inp.kasi], h = '', found = false;
@@ -444,6 +468,7 @@ details[open] > summary::after { content: "閉じる"; }
     bMix.textContent = fmt(r.bMix, 1);
     var h = '<span>現金のみ<b>' + fmt(r.bCash, 1) + '</b></span><span>持ち玉のみ<b>' + fmt(r.bMochi, 1) + '</b></span>';
     h += '<span>1回転の価値<b>' + fmt(r.value, 1) + '円</b></span><span>期待出玉<b>' + fmt(r.E) + '玉</b></span>';
+    if (r.f !== 1) h += '<span>1R出玉の補正<b>×' + fmt(r.f, 3) + '</b></span>';
     sums.innerHTML = h;
     var n = numbers(), mochi = Math.min(100, n.mochi);
     note.textContent = '持ち玉の割合 ' + fmt(mochi) + '%、1玉の交換価値 ' + fmt(r.c, 2) + '円で計算しています。持ち玉のみの値は、貸玉1000円分(' + fmt(1000 / r.k) + '玉)あたりの回転数です。';
@@ -479,7 +504,7 @@ details[open] > summary::after { content: "閉じる"; }
   $('preset').addEventListener('change', function (e) {
     var x = PRESETS[Number(e.target.value)];
     if (!x) return;
-    state.inp.name = x[0]; state.inp.p = String(x[1]); state.inp.mode = 'direct'; state.inp.E = String(presetE(x));
+    state.inp.name = x[0]; state.inp.p = String(x[1]); state.inp.mode = 'direct'; state.inp.E = String(presetE(x)); state.inp.r0 = '135';
     touch(); renderInputs(); renderResult(); e.target.value = '';
   });
   $('kan').addEventListener('change', function (e) { state.inp.kan = e.target.value; touch(); renderResult(); });
@@ -492,9 +517,14 @@ details[open] > summary::after { content: "閉じる"; }
       if (rot > 0 && yen > 0) { state.inp.R = (Math.round(rot / yen * 10000) / 10).toString(); touch(); renderInputs(); renderResult(); }
       return;
     }
+    if (t.id === 'calcRound') {
+      var rd = fnum(state.inp.rd), rbv = fnum(state.inp.rb);
+      if (rd > 0 && rbv > 0) { state.inp.r1 = (Math.round(rbv / rd * 10) / 10).toString(); touch(); renderInputs(); renderResult(); }
+      return;
+    }
     if (t.id === 'saveSpec') {
       var i = state.inp;
-      var spec = normIn({ name: i.name, p: i.p, mode: i.mode, E: i.E, g: i.g, chain: i.chain });
+      var spec = normIn({ name: i.name, p: i.p, mode: i.mode, E: i.E, g: i.g, chain: i.chain, r0: i.r0 });
       var hit = state.saved.filter(function (s) { return spec.name && s.inp.name === spec.name; })[0];
       if (hit) { hit.inp = spec; } else state.saved.unshift({ id: newId(), inp: spec });
       state.saved = state.saved.slice(0, 100);
@@ -505,7 +535,7 @@ details[open] > summary::after { content: "閉じる"; }
     if (t.dataset.act === 'load') {
       var s = state.saved.filter(function (x) { return x.id === t.dataset.sid; })[0];
       if (s) {
-        ['name', 'p', 'mode', 'E', 'g', 'chain'].forEach(function (k) { state.inp[k] = s.inp[k]; });
+        ['name', 'p', 'mode', 'E', 'g', 'chain', 'r0'].forEach(function (k) { state.inp[k] = s.inp[k]; });
         touch(); renderAll();
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
