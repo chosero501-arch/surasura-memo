@@ -171,6 +171,9 @@ details[open] > summary::after { content: "閉じる"; }
 .pos { color: var(--led); font-weight: 700; }
 .neg { color: var(--danger); font-weight: 700; }
 .verdict b { font-family: inherit; font-size: inherit; margin: 0; vertical-align: baseline; }
+.field.stack { grid-template-columns: minmax(0, 1fr); }
+.field.stack .step { gap: 8px; }
+.field.stack .step .num.s { flex: 1; width: auto; min-width: 0; }
 .num.s { width: 6.2em; font-size: 20px; min-height: 46px; padding: 0 8px; }
 .hist .h2 { color: var(--muted); font-size: 12px; }
 .card > .tools { padding-top: 0; }
@@ -197,7 +200,7 @@ details[open] > summary::after { content: "閉じる"; }
       <label class="name" for="R">1000円あたりの回転数</label>
       <input class="num" id="R" type="text" inputmode="decimal" autocomplete="off" aria-label="1000円あたりの回転数">
     </div>
-    <div class="field">
+    <div class="field stack">
       <div><div class="name">計算して入れる</div><div class="sub">回転数と、使った現金から求めます</div></div>
       <div class="step" style="gap:6px">
         <input class="num s" id="rot" type="text" inputmode="numeric" autocomplete="off" placeholder="回転数" aria-label="回転数">
@@ -254,7 +257,7 @@ details[open] > summary::after { content: "閉じる"; }
       <label>この台の実際の1R出玉(個)
         <input type="text" id="r1" inputmode="decimal" autocomplete="off" placeholder="入れると期待出玉を補正します">
       </label>
-      <div class="field" style="padding:0">
+      <div class="field stack" style="padding:0">
         <div><div class="name" style="font-size:14px">実測から求める</div><div class="sub">数えたラウンド数と、その出玉の合計</div></div>
         <div class="step" style="gap:6px">
           <input class="num s" id="rd" type="text" inputmode="numeric" autocomplete="off" placeholder="R数" aria-label="ラウンド数">
