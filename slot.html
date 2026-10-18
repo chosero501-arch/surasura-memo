@@ -224,7 +224,7 @@ details[open] > summary::after { content: "閉じる"; }
     <div id="metrics"></div>
   </section>
 
-  <section class="card" aria-label="設定示唆">
+  <section class="card" id="hintCard" aria-label="設定示唆">
     <h2>設定示唆(出たものにチェック)</h2>
     <div class="chks" id="hints"></div>
     <p class="note">濃厚・確定として扱う示唆だけを載せています。「奇数示唆」などの弱い示唆は、効き方の数字がないので入れていません。矛盾するチェックが入っても、計算は止まりません。</p>
@@ -253,14 +253,16 @@ details[open] > summary::after { content: "閉じる"; }
   /* 機種ごとの設定差。rates は「1/○○」の分母(設定1〜6)。w は判別での重み(1=そのまま)。 */
   /* 設定2以上〜設定6の5段階の示唆を作る */
   function tiers(a, b, c, d, e) {
-    return [
+    var all = [
       { id: 'ge2', label: '設定2以上濃厚', ex: a, allow: [2, 3, 4, 5, 6] },
       { id: 'ge3', label: '設定3以上濃厚', ex: b, allow: [3, 4, 5, 6] },
       { id: 'ge4', label: '設定4以上濃厚', ex: c, allow: [4, 5, 6] },
       { id: 'ge5', label: '設定5以上濃厚', ex: d, allow: [5, 6] },
       { id: 'eq6', label: '設定6濃厚', ex: e, allow: [6] }
     ];
+    return all.filter(function (h) { return h.ex; });
   }
+  function evenHint(ex) { return { id: 'even', label: '偶数設定濃厚(2・4・6)', ex: ex, allow: [2, 4, 6] }; }
   var GUESS = 'この機種の数字と示唆は、1つのサイトの情報です。示唆のほとんどは「濃厚と推察」という扱いなので、矛盾するチェックの影響を小さめにしています。';
   var NOBASE = 'AT・CZの確率は、通常時のゲーム数が分母のはずですが、サイトに明記はありません。';
   var MACHINES = [
@@ -365,16 +367,137 @@ details[open] > summary::after { content: "閉じる"; }
       ],
       hints: tiers('AT終了画面のワイシャツ、銅(コパンダ)', 'お風呂、銀', '水着、ミニキャラの詩乃・ユイ、金', '稲妻柄', 'パジャマ、シノン&キリト、アスナ&ユウキ、虹'),
       notes: [GUESS, NOBASE, 'この機種は設定ごとの差が一直線ではなく、設定2と3、設定4と5で逆転しています(サイトの数字のまま)。']
+    },
+    {
+      id: 'jy', name: 'スマスロ 獣王', payout: [97.8, 98.7, null, 105.6, 108.6, 114.3], soft: true,
+      metrics: [
+        { k: 'sc', label: 'サバンナチャンス初当り', unit: '回', w: 1, rates: [326.5, 321.6, null, 295.8, 287.6, 279.7],
+          note: 'SC終了後の潜伏区間(29G)を除いた数字です。' }
+      ],
+      hints: tiers('銅トロフィー', '', '金トロフィー', 'キリン柄トロフィー', '虹トロフィー'),
+      notes: [GUESS, NOBASE, 'この機種には設定3がありません(サイトの表にも載っていません)。設定Lの数字もないため、判別には入れていません。']
+    },
+    {
+      id: 'ab', name: 'L青春ブタ野郎はバニーガール先輩の夢を見ない', payout: [null, 98.1, 99.3, 105.3, 108.4, 110.3], soft: true,
+      metrics: [
+        { k: 'at', label: '初当り', unit: '回', w: 1, rates: [null, 350.8, 336.5, 295.1, 274.6, 207.8] },
+        { k: 'ao', label: 'アオハルCHANCE', unit: '回', w: 0.5, rates: [null, 63.7, 62.4, 59.4, 58.6, 57.2],
+          note: '初当りと重なる分を考えて、半分の重みで見ています。' }
+      ],
+      hints: tiers('隠れ凪「一味違いますね」(推察)', 'ST終了画面の梓川かえで(吉スタンプ)、隠れ凪「何やら不思議な気配です」', 'ST終了画面の牧之原翔子(良スタンプ)、ハルルナPUSH、隠れ凪「良い予感がします」', 'ST終了画面の桜島麻衣バニー(優スタンプ)、隠れ凪「遊び尽くしちゃいましょう」', 'ST終了画面の全員集合(極スタンプ)、隠れ凪「お肉〜お肉〜」'),
+      notes: [GUESS, NOBASE, 'この機種には設定1がなく、設定Lがあります。設定Lの数字がないので、設定2〜6だけで計算しています。', '隠れ凪の示唆は、他のシリーズの内容からの推察です。']
+    },
+    {
+      id: 'en', name: 'Lパチスロ 炎炎ノ消防隊2', payout: null, soft: true,
+      metrics: [
+        { k: 'bonus', label: 'ボーナス初当り', unit: '回', w: 1, rates: [272, 269, 257, 242, 236, 227] },
+        { k: 'loop', label: '炎炎ループ初当り', unit: '回', w: 0.5, rates: [684, 662, 617, 546, 518, 486],
+          note: 'ボーナスと重なる分を考えて、半分の重みで見ています。' }
+      ],
+      hints: [],
+      notes: [GUESS, NOBASE, '機械割は、サイトに記載がありませんでした。', '設定示唆は、出典のサイトに濃厚・確定の記載がなかったため、入れていません。']
+    },
+    {
+      id: 'kk', name: 'Lパチスロ 彼女、お借りします', payout: [97.7, 98.7, 101.0, 105.5, 110.4, 114.9], soft: true,
+      metrics: [
+        { k: 'at', label: '初当り', unit: '回', w: 1, rates: [269, 263, 254, 235, 231, 226] },
+        { k: 'cz', label: 'CZ', unit: '回', w: 0.5, rates: [172, 169, 164, 154, 151, 149],
+          note: 'CZからATに入るため、ATと重なる分を考えて、半分の重みで見ています。' }
+      ],
+      hints: tiers('終了画面の赤枠、RB中キャラ紹介⑫、エンディングの麻美ボイス', 'RB中キャラ紹介⑬', '終了画面の紫枠、RB中キャラ紹介⑭、センチメートル44cm、456枚OVER、エンディングの瑠夏ボイス', '終了画面の銀枠、RB中キャラ紹介⑮、センチメートル55cm、エンディングの墨ボイス、攻略キャラ同じシナリオ連続', '終了画面の金枠、RB中キャラ紹介⑥、センチメートル66cm、666枚OVER・394枚OVER、エンディングの千鶴ボイス').concat([evenHint('246枚OVER')]),
+      notes: [GUESS, NOBASE]
+    },
+    {
+      id: 'mk', name: 'スマスロ モンキーターンV', payout: [97.9, 98.9, null, 104.5, 110.2, 114.9], soft: true,
+      metrics: [
+        { k: 'at', label: 'AT初当り', unit: '回', w: 1, rates: [299.8, 295.5, null, 258.8, 235.7, 222.9] }
+      ],
+      hints: tiers('AT終了画面の銅トロフィー', '', '金トロフィー、456枚OVER、弱レア役からのAT直撃', 'ケロット柄トロフィー、SGラッシュ中の山佐キャラ集合、803枚OVER、青島&波多野のラウンド', '虹トロフィー、666枚OVER'),
+      notes: [GUESS, NOBASE, 'この機種には設定3がありません(サイトの表にも載っていません)。設定Lの数字もないため、判別には入れていません。', 'CZの確率に設定差の数字が見つからなかったため、入れていません。']
+    },
+    {
+      id: 'yo', name: '真打 吉宗', payout: null, soft: true,
+      metrics: [
+        { k: 'at', label: 'AT初当り', unit: '回', w: 1, rates: [488.9, 471.5, 438.5, 398.1, 377.0, 354.9] },
+        { k: 'cz', label: 'CZ', unit: '回', w: 0.5, rates: [313.0, 303.0, 283.5, 267.1, 256.9, 250.6],
+          note: 'CZからATに入るため、ATと重なる分を考えて、半分の重みで見ています。' }
+      ],
+      hints: tiers('AT終了画面の大岡越前、エンディングの吉宗ボイス、銅トロフィー', '銀トロフィー', 'AT終了画面の柳生、456枚突破、エンディングの越前ボイス、金トロフィー', 'AT終了画面の大奥、555枚突破、稲妻柄トロフィー', 'AT終了画面の吉宗、666枚突破、「江戸を守る!」ボイス、虹トロフィー'),
+      notes: [GUESS, NOBASE, '機械割は、サイトに記載がありませんでした。', 'トロフィーの意味は、他の機種からの推察です。']
+    },
+    {
+      id: 'vv', name: 'Lパチスロ 革命機ヴァルヴレイヴ2', payout: [97.7, 99.3, null, 104.7, 110.8, 114.9], soft: true,
+      metrics: [
+        { k: 'at', label: 'AT初当り(合算)', unit: '回', w: 1, rates: [476, 473, null, 464, 459, 456],
+          note: '革命ボーナス・決戦ボーナス・AT直撃の合算です。設定による差がとても小さいので、判別への効きは弱めです。' }
+      ],
+      hints: tiers('ゾロ目+22G', '', '456枚OVER、ゾロ目+44G、マギウスマーク4個、ハラキリドライブ中の夢夢ちゃん', '555枚OVER、マギウスマーク5個', 'AT終了画面の写真、666枚OVER、ゾロ目+66G、マギウスマーク6個'),
+      notes: [GUESS, NOBASE, '出典の表に設定3の数字がなかったため、設定3は計算に入れていません。']
+    },
+    {
+      id: 'mr', name: 'スマスロ モンスターハンターライズ', payout: [97.9, 98.8, 100.3, 105.4, 110.1, 114.3], soft: true,
+      metrics: [
+        { k: 'at', label: 'AT初当り', unit: '回', w: 1, rates: [309.5, 301.4, 290.8, 256.4, 237.1, 230.8] }
+      ],
+      hints: tiers('エンタトロフィー銅', 'エンタトロフィー銀', 'エンタトロフィー金', 'エンタトロフィー紅', 'エンタトロフィー虹、エンタライオンのボイス'),
+      notes: [GUESS, NOBASE, 'サイトの管理人の解析で、公式の数字ではありません。']
+    },
+    {
+      id: 'sc', name: '戦国コレクション6', payout: null, soft: true,
+      metrics: [
+        { k: 'at', label: 'AT初当り', unit: '回', w: 1, rates: [363.6, 350.4, 329.8, 289.4, 268.5, 252.2] }
+      ],
+      hints: tiers('222枚OVER、AT終了画面の敵武将3人、夢幻斬りランプ緑', 'アリストロフィー銀(推察)', '456枚OVER、7揃い停止形が4、AT終了画面の信長・光秀・利休・有楽、夢幻斬りランプ赤', 'アリストロフィー クローバー(推察)', '573枚OVER、7揃い停止形が7、AT終了画面のしずもん絵、夢幻斬りランプ虹').concat([evenHint('246枚OVER')]),
+      notes: [GUESS, NOBASE, '機械割は、サイトに記載がありませんでした。', 'CZの確率は、見つかりませんでした。']
+    },
+    {
+      id: 'kr', name: 'Lパチスロ からくりサーカス2', payout: null, soft: true,
+      metrics: [
+        { k: 'at', label: 'AT初当り', unit: '回', w: 1, rates: [519, 504, 474, 458, 430, 410] },
+        { k: 'cz', label: 'CZ(合算)', unit: '回', w: 0.5, rates: [342, 341, 339, 339, 327, 318],
+          note: 'CZからATに入るため、ATと重なる分を考えて、半分の重みで見ています。設定1〜4はほとんど差がありません。' }
+      ],
+      hints: tiers('AT終了画面の歯車', '', 'AT終了画面の鳴海&勝', '', 'AT終了画面のエレオノール(笑顔)'),
+      notes: [GUESS, NOBASE, '機械割は、サイトに記載がありませんでした。']
+    },
+    {
+      id: 'mg', name: 'スマスロ マギアレコード 魔法少女まどか☆マギカ外伝', payout: [97.6, 98.9, 102.0, 106.0, 110.4, 114.9], soft: true,
+      metrics: [
+        { k: 'bonus', label: 'ボーナス初当り', unit: '回', w: 1, rates: [240.6, 236.1, 222.8, 208.5, 195.1, 184.3] },
+        { k: 'at', label: 'AT初当り', unit: '回', w: 0.5, rates: [654.6, 633.4, 571.8, 516.6, 456.5, 416.7],
+          note: 'ボーナスと重なる分を考えて、半分の重みで見ています。' }
+      ],
+      hints: tiers('ユニバプレート銅(予想)', 'ユニバプレート銀(予想)', 'ユニバプレート金(予想)、エンディングの舞台装置', 'ユニバプレート花火柄(予想)、キャラ紹介⑨、ストーリー順5→4→3→2→1', 'ユニバプレート虹(予想)'),
+      notes: [GUESS, NOBASE]
+    },
+    {
+      id: 'yj', name: 'スマスロ やじきた道中記参る!', payout: null, soft: true,
+      metrics: [
+        { k: 'at', label: 'AT初当り', unit: '回', w: 1, rates: [473.9, 457.5, 431.6, 388.1, 352.1, 318.3] },
+        { k: 'cz', label: 'CZ(関所チャレンジ)', unit: '回', w: 0.5, rates: [231.1, 222.7, 209.5, 191.5, 173.1, 157.5],
+          note: 'CZからATに入るため、ATと重なる分を考えて、半分の重みで見ています。' }
+      ],
+      hints: tiers('あっぱれチャンス中の青コメント+2、銅プレート(推察)', '銀プレート(推察)', '黄コメント+7、1111枚おーばー、通行手形の吉田(緑)、AT終了画面のやじさんきたさん、金プレート(推察)', '白コメント+10、555枚おーばー、通行手形の熱田(赤)、花火柄プレート(推察)', '赤コメント+66、666枚おーばー、通行手形の伊勢(金)、虹プレート(推察)'),
+      notes: [GUESS, NOBASE, '機械割は、サイトに記載がありませんでした。']
     }
   ];
+  var ORDER = ['mh', 'jy', 'lr', 'tg', 'sa', 'ab', 'ot', 'pp', 'in', 'kb', 'en', 'kk', 'mk', 'yo', 'vv', 'mr', 'sc', 'kr', 'mg', 'yj'];
+  MACHINES.sort(function (a, b) { return ORDER.indexOf(a.id) - ORDER.indexOf(b.id); });
   function machineOf(id) {
     for (var i = 0; i < MACHINES.length; i++) if (MACHINES[i].id === id) return MACHINES[i];
     return MACHINES[0];
   }
 
   /* rec: { games, counts:{k:n}, hints:[id] } */
+  function absentOf(mach) {
+    var a = [];
+    for (var s = 0; s < 6; s++) if (mach.metrics[0].rates[s] == null) a.push(s);
+    return a;
+  }
   function posterior(mach, rec) {
-    var N = rec.games, out = { p: [1 / 6, 1 / 6, 1 / 6, 1 / 6, 1 / 6, 1 / 6], hasData: false, error: '', used: [], hinted: false };
+    var N = rec.games, ab = absentOf(mach), nPres = 6 - ab.length;
+    var out = { p: [], hasData: false, error: '', used: [], hinted: false };
+    for (var u = 0; u < 6; u++) out.p.push(ab.indexOf(u) >= 0 ? 0 : 1 / nPres);
     var ll = [0, 0, 0, 0, 0, 0], any = false;
     for (var m = 0; m < mach.metrics.length; m++) {
       var mt = mach.metrics[m], k = rec.counts[mt.k] || 0;
@@ -385,6 +508,7 @@ details[open] > summary::after { content: "閉じる"; }
       any = true;
       if (k > 0) out.used.push(mt.label);
       for (var s = 0; s < 6; s++) {
+        if (mt.rates[s] == null) continue;
         var p = 1 / mt.rates[s];
         ll[s] += mt.w * (k * Math.log(p) + (Nm - k) * Math.log(1 - p));
       }
@@ -396,8 +520,10 @@ details[open] > summary::after { content: "閉じる"; }
       for (var s = 0; s < 6; s++) if (h.allow.indexOf(s + 1) < 0) ll[s] += Math.log(mach.soft ? 0.05 : 0.01);
     });
     if (!any) return out;
-    var mx = Math.max.apply(null, ll), sum = 0, e = [];
-    for (var i = 0; i < 6; i++) { e.push(Math.exp(ll[i] - mx)); sum += e[i]; }
+    var mx = -Infinity;
+    for (var i = 0; i < 6; i++) if (ab.indexOf(i) < 0 && ll[i] > mx) mx = ll[i];
+    var sum = 0, e = [];
+    for (var j = 0; j < 6; j++) { var v = ab.indexOf(j) >= 0 ? 0 : Math.exp(ll[j] - mx); e.push(v); sum += v; }
     out.p = e.map(function (x) { return x / sum; });
     out.hasData = true;
     return out;
@@ -461,7 +587,7 @@ details[open] > summary::after { content: "閉じる"; }
     m.metrics.forEach(function (mt) {
       var c = r.counts[mt.k] || 0;
       $('v_' + mt.k).textContent = c;
-      var range = '設定1〜6: 1/' + mt.rates[0].toFixed(0) + '〜1/' + mt.rates[5].toFixed(0);
+      var vals = mt.rates.filter(function (x) { return x != null; }), range = '設定別: 1/' + vals[0].toFixed(0) + '〜1/' + vals[vals.length - 1].toFixed(0);
       var base = mt.base === 'total' ? r.total : r.games;
       $('r_' + mt.k).textContent = c && base ? '1/' + (base / c).toFixed(1) + '(' + range + ')' : range;
     });
@@ -471,7 +597,7 @@ details[open] > summary::after { content: "閉じる"; }
     m.hints.forEach(function (x) {
       h += '<label class="chk"><input type="checkbox" data-hint="' + x.id + '"' + (r.hints.indexOf(x.id) >= 0 ? ' checked' : '') + '><span><b>' + x.label + '</b><small>' + x.ex + '</small></span></label>';
     });
-    $('hints').innerHTML = h;
+    $('hints').innerHTML = h; $('hintCard').hidden = !m.hints.length;
   }
   function renderResult() {
     var m = mach(), r = rec(), res = posterior(m, r), best = 0;
@@ -481,7 +607,9 @@ details[open] > summary::after { content: "閉じる"; }
     else if (!res.hasData) $('verdict').textContent = 'ゲーム数を入れるか、設定示唆にチェックを入れると、計算します。';
     else $('verdict').innerHTML = '設定<b>' + (best + 1) + '</b>が最有力(' + (res.p[best] * 100).toFixed(1) + '%)';
     var h = '';
+    var abs = absentOf(m);
     for (var s = 0; s < 6; s++) {
+      if (abs.indexOf(s) >= 0) { h += '<div class="row"><span class="lbl">設定' + (s + 1) + '</span><span class="track"></span><span class="pct">なし</span></div>'; continue; }
       var pct = res.p[s] * 100, top = res.hasData && s === best;
       h += '<div class="row' + (top ? ' top' : '') + '"><span class="lbl">設定' + (s + 1) + '</span><span class="track"><span class="fill" style="width:' + pct.toFixed(1) + '%"></span></span><span class="pct">' + pct.toFixed(1) + '%</span></div>';
     }
@@ -504,8 +632,8 @@ details[open] > summary::after { content: "閉じる"; }
     m.metrics.forEach(function (mt) { h += '<th>' + mt.label + '</th>'; });
     h += '</tr>';
     for (var s = 0; s < 6; s++) {
-      h += '<tr><td>' + (s + 1) + '</td>' + (m.payout ? '<td>' + m.payout[s].toFixed(1) + '%</td>' : '');
-      m.metrics.forEach(function (mt) { h += '<td>1/' + mt.rates[s].toFixed(1) + '</td>'; });
+      h += '<tr><td>' + (s + 1) + '</td>' + (m.payout ? '<td>' + (m.payout[s] == null ? '—' : m.payout[s].toFixed(1) + '%') + '</td>' : '');
+      m.metrics.forEach(function (mt) { h += '<td>' + (mt.rates[s] == null ? '—' : '1/' + mt.rates[s].toFixed(1)) + '</td>'; });
       h += '</tr>';
     }
     $('spec').innerHTML = h;
