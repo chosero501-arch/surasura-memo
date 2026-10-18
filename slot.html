@@ -214,12 +214,16 @@ details[open] > summary::after { content: "閉じる"; }
   <section class="card" aria-label="カウンター">
     <h2>カウンター</h2>
     <div class="field">
-      <div><label class="name" for="games">通常時のゲーム数</label><div class="sub">AT中・ボーナス中は数えません</div></div>
+      <div><label class="name" for="total">総ゲーム数</label><div class="sub">総回転数。通常時とAT中を合わせた数</div></div>
+      <input class="num" id="total" type="text" inputmode="numeric" autocomplete="off" aria-label="総ゲーム数">
+    </div>
+    <div class="field">
+      <div><label class="name" for="games">通常時のゲーム数</label><div class="sub">わかる時だけ。空欄なら、総ゲーム数から概算します</div></div>
       <input class="num" id="games" type="text" inputmode="numeric" autocomplete="off" aria-label="通常時のゲーム数">
     </div>
-    <div class="field" id="totalField" hidden>
-      <div><label class="name" for="total">総ゲーム数</label><div class="sub">通常時とST中を合わせた回転数(下段ベル用)</div></div>
-      <input class="num" id="total" type="text" inputmode="numeric" autocomplete="off" aria-label="総ゲーム数">
+    <div class="field" id="rateField">
+      <div><label class="name" for="rate">通常時の割合(%)</label><div class="sub" id="rateSub">総ゲーム数のうち、通常時が占める割合の仮定</div></div>
+      <input class="num" id="rate" type="text" inputmode="numeric" autocomplete="off" aria-label="通常時の割合(%)">
     </div>
     <div id="metrics"></div>
   </section>
@@ -495,14 +499,16 @@ details[open] > summary::after { content: "閉じる"; }
     return a;
   }
   function posterior(mach, rec) {
-    var N = rec.games, ab = absentOf(mach), nPres = 6 - ab.length;
-    var out = { p: [], hasData: false, error: '', used: [], hinted: false };
+    var rateV = rec.rate > 0 ? rec.rate : 85;
+    var N = rec.games > 0 ? rec.games : Math.round((rec.total || 0) * rateV / 100);
+    var ab = absentOf(mach), nPres = 6 - ab.length;
+    var out = { p: [], hasData: false, error: '', used: [], hinted: false, est: !(rec.games > 0) && N > 0, N: N };
     for (var u = 0; u < 6; u++) out.p.push(ab.indexOf(u) >= 0 ? 0 : 1 / nPres);
     var ll = [0, 0, 0, 0, 0, 0], any = false;
     for (var m = 0; m < mach.metrics.length; m++) {
       var mt = mach.metrics[m], k = rec.counts[mt.k] || 0;
       var Nm = mt.base === 'total' ? (rec.total || 0) : N;
-      if (k > 0 && Nm === 0) { out.error = mt.label + 'を数えるには、' + (mt.base === 'total' ? '総ゲーム数' : '通常時のゲーム数') + 'を入れてください。'; return out; }
+      if (k > 0 && Nm === 0) { out.error = mt.label + 'を数えるには、' + '総ゲーム数を入れてください。'; return out; }
       if (k > Nm) { out.error = mt.label + 'の回数が、ゲーム数より多くなっています。'; return out; }
       if (Nm <= 0) continue;
       any = true;
@@ -540,10 +546,10 @@ details[open] > summary::after { content: "閉じる"; }
   }
   function fmt(n) { return Number(n).toLocaleString('ja-JP'); }
 
-  function blankRec() { return { games: 0, total: 0, counts: {}, hints: [] }; }
+  function blankRec() { return { games: 0, total: 0, rate: 85, counts: {}, hints: [] }; }
   function normRec(r, mach) {
     var o = blankRec(); r = r || {};
-    o.games = num(r.games); o.total = num(r.total);
+    o.games = num(r.games); o.total = num(r.total); o.rate = num(r.rate, 100) || 85;
     mach.metrics.forEach(function (m) { o.counts[m.k] = num(r.counts && r.counts[m.k]); });
     o.hints = (Array.isArray(r.hints) ? r.hints : []).filter(function (id) { return mach.hints.some(function (h) { return h.id === id; }); });
     return o;
@@ -588,7 +594,7 @@ details[open] > summary::after { content: "閉じる"; }
       var c = r.counts[mt.k] || 0;
       $('v_' + mt.k).textContent = c;
       var vals = mt.rates.filter(function (x) { return x != null; }), range = '設定別: 1/' + vals[0].toFixed(0) + '〜1/' + vals[vals.length - 1].toFixed(0);
-      var base = mt.base === 'total' ? r.total : r.games;
+      var base = mt.base === 'total' ? r.total : (r.games > 0 ? r.games : Math.round(r.total * (r.rate || 85) / 100));
       $('r_' + mt.k).textContent = c && base ? '1/' + (base / c).toFixed(1) + '(' + range + ')' : range;
     });
   }
@@ -619,11 +625,11 @@ details[open] > summary::after { content: "閉じる"; }
     var t = '';
     if (res.hasData && !res.error) {
       var parts = [];
-      if (r.games) parts.push('通常時 ' + fmt(r.games) + 'G');
+      if (res.N) parts.push('通常時 ' + fmt(res.N) + 'G' + (res.est ? '(総ゲーム数の' + (r.rate || 85) + '%と仮定した概算)' : ''));
       if (r.total) parts.push('総 ' + fmt(r.total) + 'G');
       if (res.used.length) parts.push(res.used.join('・') + 'の回数');
       if (res.hinted) parts.push('設定示唆');
-      t = '計算に使ったもの: ' + parts.join('、') + '。ゲーム数が少ないうちは、結果が大きく動きます。';
+      t = '計算に使ったもの: ' + parts.join('、') + '。' + (res.est ? '通常時の割合の仮定がずれると、結果もずれます。' : '') + 'ゲーム数が少ないうちは、結果が大きく動きます。';
     }
     $('rnote').textContent = t;
   }
@@ -643,9 +649,10 @@ details[open] > summary::after { content: "閉じる"; }
     $('specNotes').innerHTML = n;
   }
   function renderTotal() {
-    var has = mach().metrics.some(function (m) { return m.base === 'total'; });
-    $('totalField').hidden = !has;
-    setIfIdle($('total'), rec().total ? fmt(rec().total) : '');
+    var r = rec();
+    setIfIdle($('total'), r.total ? fmt(r.total) : '');
+    setIfIdle($('rate'), r.rate);
+    $('rateField').hidden = r.games > 0;
   }
   function renderAll() {
     renderMachineSelect(); renderTotal();
@@ -655,7 +662,8 @@ details[open] > summary::after { content: "閉じる"; }
 
   /* ---------- events ---------- */
   $('mach').addEventListener('change', function (e) { state.mach = e.target.value; touch(); renderAll(); });
-  $('games').addEventListener('input', function (e) { rec().games = num(e.target.value); touch(); renderMetrics(); renderResult(); });
+  $('games').addEventListener('input', function (e) { rec().games = num(e.target.value); $('rateField').hidden = rec().games > 0; touch(); renderMetrics(); renderResult(); });
+  $('rate').addEventListener('input', function (e) { rec().rate = num(e.target.value, 100) || 85; touch(); renderMetrics(); renderResult(); });
   $('total').addEventListener('input', function (e) { rec().total = num(e.target.value); touch(); renderMetrics(); renderResult(); });
   $('total').addEventListener('blur', function () { $('total').value = rec().total ? fmt(rec().total) : ''; });
   $('games').addEventListener('blur', function () { $('games').value = rec().games ? fmt(rec().games) : ''; });
