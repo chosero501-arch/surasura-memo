@@ -251,6 +251,18 @@ details[open] > summary::after { content: "閉じる"; }
 
   /*MATH*/
   /* 機種ごとの設定差。rates は「1/○○」の分母(設定1〜6)。w は判別での重み(1=そのまま)。 */
+  /* 設定2以上〜設定6の5段階の示唆を作る */
+  function tiers(a, b, c, d, e) {
+    return [
+      { id: 'ge2', label: '設定2以上濃厚', ex: a, allow: [2, 3, 4, 5, 6] },
+      { id: 'ge3', label: '設定3以上濃厚', ex: b, allow: [3, 4, 5, 6] },
+      { id: 'ge4', label: '設定4以上濃厚', ex: c, allow: [4, 5, 6] },
+      { id: 'ge5', label: '設定5以上濃厚', ex: d, allow: [5, 6] },
+      { id: 'eq6', label: '設定6濃厚', ex: e, allow: [6] }
+    ];
+  }
+  var GUESS = 'この機種の数字と示唆は、1つのサイトの情報です。示唆のほとんどは「濃厚と推察」という扱いなので、矛盾するチェックの影響を小さめにしています。';
+  var NOBASE = 'AT・CZの確率は、通常時のゲーム数が分母のはずですが、サイトに明記はありません。';
   var MACHINES = [
     {
       id: 'tg', name: 'スマスロ 東京喰種', payout: [97.5, 99.0, 101.6, 105.6, 110.3, 114.9],
@@ -297,6 +309,62 @@ details[open] > summary::after { content: "閉じる"; }
         '偶数設定示唆・設定3,5示唆などの弱い示唆は、効き方の数字がないので入れていません。',
         '結果は「設定がいくつか」の断定ではなく、入力した数字から計算した可能性の目安です。'
       ]
+    },
+    {
+      id: 'mh', name: 'スマスロ モンスターハンターライズ:サンブレイク', payout: null, soft: true,
+      metrics: [
+        { k: 'at', label: 'AT初当り', unit: '回', w: 1, rates: [349.9, 337.0, 319.8, 283.6, 264.0, 242.3] }
+      ],
+      hints: tiers('ヒノエ&ミノト、222枚OVER、銅(エンタトロフィー・スタンプ)', '銀(エンタトロフィー・スタンプ)', '金(エンタトロフィー・スタンプ)、456枚OVER', '全員集合、555枚OVER、紅葉柄', 'エンタライオン、666枚OVER、虹'),
+      notes: [GUESS, NOBASE, '機械割は、サイトに記載がありませんでした。']
+    },
+    {
+      id: 'lr', name: 'スマスロ リコリス・リコイル', payout: [97.9, 98.9, 101.3, 106.1, 110.4, 114.6], soft: true,
+      metrics: [
+        { k: 'st', label: 'ST初当り', unit: '回', w: 1, rates: [328.8, 323.4, 312.1, 288.3, 271.6, 256.7] },
+        { k: 'cz', label: 'CZ', unit: '回', w: 0.5, rates: [198.7, 196.9, 191.3, 183.3, 175.9, 169.4],
+          note: 'CZからATに入るため、ATと重なる分を考えて、半分の重みで見ています。' }
+      ],
+      hints: tiers('銅トロフィー、ST終了画面の押上の風景', '銀トロフィー', '金トロフィー、ST終了画面のロボ太、私服千束×たきなRUSH', 'キリン柄トロフィー', '虹トロフィー、ST終了画面のハワイ'),
+      notes: [GUESS, NOBASE]
+    },
+    {
+      id: 'ot', name: 'L戦国乙女5 業火を穿つ宿焔の双刃', payout: null, soft: true,
+      metrics: [
+        { k: 'at', label: 'AT初当り', unit: '回', w: 1, rates: [359.5, 350.8, 332.5, 302.8, 281.0, 262.9] }
+      ],
+      hints: tiers('ボーナス終了画面の塔、222枚OVER、ゴエモン「さんきゅ〜!」', 'ゴエモン吉、333枚OVER、「ご機嫌っしょ!」', 'ノブナガ&ミツヒデ、444枚OVER、「攻めどきっしょ!」', '乙女集合(優)、555枚OVER、「気分アゲアゲだし!」', 'ノブナガ(極)、666枚OVER、石川ゴエモン口上'),
+      notes: [GUESS, NOBASE, '機械割は、サイトに記載がありませんでした。']
+    },
+    {
+      id: 'pp', name: 'スマスロ パリピ孔明', payout: null, soft: true,
+      metrics: [
+        { k: 'bonus', label: 'ボーナス初当り', unit: '回', w: 1, rates: [309.9, 299.6, 280.0, 262.0, 243.9, 228.8] },
+        { k: 'cz', label: 'CZ(合算)', unit: '回', w: 0.5, rates: [213.6, 207.3, 199.2, 188.8, 179.4, 171.7],
+          note: 'CZからATに入るため、ATと重なる分を考えて、半分の重みで見ています。' }
+      ],
+      hints: tiers('英子&赤兎馬カンフー、222枚OVER、ミニキャラ2人、銅', '太人&孔明、ミニキャラ3人、銀', '英子&七海、456枚OVER、ミニキャラ4人、金', '孔明(赤背景)、555枚OVER、ミニキャラ5人', 'ケロット着ぐるみ、666枚OVER、金孔明、虹'),
+      notes: [GUESS, NOBASE, '機械割は、サイトに記載がありませんでした。']
+    },
+    {
+      id: 'in', name: 'スマスロ とある魔術の禁書目録2', payout: null, soft: true,
+      metrics: [
+        { k: 'at', label: 'AT初当り', unit: '回', w: 1, rates: [398.8, 394.5, 389.6, 369.5, 358.0, 338.4] },
+        { k: 'cz', label: 'CZ(合算)', unit: '回', w: 0.5, rates: [235.6, 233.4, 230.8, 222.3, 215.8, 207.2],
+          note: 'CZからATに入るため、ATと重なる分を考えて、半分の重みで見ています。' }
+      ],
+      hints: tiers('174枚OVER、エンディングの「やったあ」系、銅コイン', '「すごい」系、銀コイン', '456枚OVER、美琴+初春の終了画面、「とっても美味しい」系、金コイン', '「すっごくうれしい」系、DANGER柄コイン', '220枚OVER、当麻ハーレム、「おめでとう」系、虹コイン'),
+      notes: [GUESS, NOBASE, '機械割は、サイトに記載がありませんでした。']
+    },
+    {
+      id: 'sa', name: 'スロット ソードアート・オンラインII', payout: null, soft: true,
+      metrics: [
+        { k: 'at', label: 'AT初当り', unit: '回', w: 1, rates: [386.2, 364.3, 368.1, 326.8, 340.6, 269.6] },
+        { k: 'cz', label: 'CZ', unit: '回', w: 0.5, rates: [238.4, 232.3, 232.7, 218.9, 225.2, 191.7],
+          note: 'CZからATに入るため、ATと重なる分を考えて、半分の重みで見ています。' }
+      ],
+      hints: tiers('AT終了画面のワイシャツ、銅(コパンダ)', 'お風呂、銀', '水着、ミニキャラの詩乃・ユイ、金', '稲妻柄', 'パジャマ、シノン&キリト、アスナ&ユウキ、虹'),
+      notes: [GUESS, NOBASE, 'この機種は設定ごとの差が一直線ではなく、設定2と3、設定4と5で逆転しています(サイトの数字のまま)。']
     }
   ];
   function machineOf(id) {
@@ -325,7 +393,7 @@ details[open] > summary::after { content: "閉じる"; }
     mach.hints.forEach(function (h) {
       if (hs.indexOf(h.id) < 0) return;
       any = true; out.hinted = true;
-      for (var s = 0; s < 6; s++) if (h.allow.indexOf(s + 1) < 0) ll[s] += Math.log(0.01);
+      for (var s = 0; s < 6; s++) if (h.allow.indexOf(s + 1) < 0) ll[s] += Math.log(mach.soft ? 0.05 : 0.01);
     });
     if (!any) return out;
     var mx = Math.max.apply(null, ll), sum = 0, e = [];
@@ -432,11 +500,11 @@ details[open] > summary::after { content: "閉じる"; }
     $('rnote').textContent = t;
   }
   function renderSpec() {
-    var m = mach(), h = '<tr><th>設定</th><th>機械割</th>';
+    var m = mach(), h = '<tr><th>設定</th>' + (m.payout ? '<th>機械割</th>' : '');
     m.metrics.forEach(function (mt) { h += '<th>' + mt.label + '</th>'; });
     h += '</tr>';
     for (var s = 0; s < 6; s++) {
-      h += '<tr><td>' + (s + 1) + '</td><td>' + m.payout[s].toFixed(1) + '%</td>';
+      h += '<tr><td>' + (s + 1) + '</td>' + (m.payout ? '<td>' + m.payout[s].toFixed(1) + '%</td>' : '');
       m.metrics.forEach(function (mt) { h += '<td>1/' + mt.rates[s].toFixed(1) + '</td>'; });
       h += '</tr>';
     }
