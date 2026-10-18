@@ -183,7 +183,7 @@ details[open] > summary::after { content: "閉じる"; }
   <header class="head">
     <h1>パチンコボーダー計算</h1>
     <span class="sync" id="sync" role="status"></span>
-    <button class="btn small" type="button" id="saveRec" aria-label="この内容を保存">保存</button>
+    <button class="btn small" type="button" id="saveRec" aria-label="この内容を保存(記録と画像)">保存</button>
     <button class="btn small" type="button" id="reload" aria-label="再読み込み" title="再読み込み">↻</button>
   </header>
 
@@ -507,6 +507,68 @@ details[open] > summary::after { content: "閉じる"; }
   }
   function renderAll() { renderInputs(); renderResult(); renderSaved(); }
 
+
+  function saveImage() {
+    var n = numbers(), r = calc(n), inp = state.inp;
+    var W = 760, P = 36, y = 0, dpr = 2;
+    var c = document.createElement('canvas');
+    c.width = W * dpr; c.height = 1100 * dpr;
+    var g = c.getContext('2d'); g.scale(dpr, dpr);
+    var F = '"Hiragino Sans","Yu Gothic UI","Noto Sans JP","BIZ UDPGothic",sans-serif';
+    g.fillStyle = '#fbfcfa'; g.fillRect(0, 0, W, 1100);
+    function t(txt, x, yy, size, col, bold, align) { g.font = (bold ? '700 ' : '400 ') + size + 'px ' + F; g.fillStyle = col; g.textAlign = align || 'left'; g.fillText(txt, x, yy); }
+    var INK = '#1a2125', MUT = '#55616a', LED = '#b05400', LINE = '#c9cfc9', POS = '#1e7a46', NEG = '#b3362b';
+    var d = new Date(), pad = function (v) { return (v < 10 ? '0' : '') + v; };
+    var stamp = d.getFullYear() + '/' + pad(d.getMonth() + 1) + '/' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    y = 56; t('パチンコボーダー計算', P, y, 26, INK, true);
+    y += 36; t(stamp, P, y, 20, MUT);
+    y += 40; t(inp.name || '(機種名なし)', P, y, 26, INK, true);
+    y += 34; t('初当たり 1/' + (inp.p || '—') + (r.ok ? '   期待出玉 ' + fmt(r.E) + '玉' : ''), P, y, 22, MUT);
+    y += 28; g.fillStyle = LINE; g.fillRect(P, y, W - 2 * P, 2);
+    if (!r.ok) {
+      y += 56; t('初当たり確率と期待出玉が未入力です', P, y, 22, MUT, true);
+    } else {
+      y += 30; t('ボーダー(1000円あたりの回転数)', P, y, 20, MUT, true);
+      y += 60; t(fmt(r.bMix, 1) + ' 回転', P, y, 48, LED, true);
+      y += 40; t('現金のみ ' + fmt(r.bCash, 1) + '   持ち玉のみ ' + fmt(r.bMochi, 1), P, y, 22, INK);
+      y += 34; t('1回転の価値 ' + fmt(r.value, 1) + '円   交換 ' + fmt(r.c, 2) + '円/玉   持ち玉 ' + fmt(Math.min(100, n.mochi)) + '%', P, y, 20, MUT);
+      if (r.f !== 1) { y += 30; t('1R出玉の補正 ×' + fmt(r.f, 3), P, y, 20, MUT); }
+      y += 28; g.fillStyle = LINE; g.fillRect(P, y, W - 2 * P, 2);
+      y += 44; t('この台の実戦', P, y, 20, MUT, true);
+      if (fnum(inp.rot) > 0) { y += 44; t('総回転数 ' + fmt(fnum(inp.rot)) + 'G   投資 ' + fmt(fnum(inp.yen)) + '円', P, y, 24, INK); }
+      if (r.diff != null) {
+        var good = r.diff >= 0, col = good ? POS : NEG;
+        y += 50; t('回転率 ' + fmt(n.R, 1) + ' / 1000円', P, y, 30, INK, true);
+        y += 44; t('ボーダー' + (good ? '超え ' : '割れ ') + sgn(r.diff, 1) + ' 回転', P, y, 28, col, true);
+        y += 50; t('期待収支 ' + sgn(r.profit1000) + '円 / 1000円', P, y, 28, col, true);
+        if (r.profitHour != null) { y += 44; t('時給 ' + sgn(r.profitHour) + '円(1時間 ' + fmt(n.spd) + '回転)', P, y, 26, col, true); }
+      } else { y += 44; t('回転率が未入力です', P, y, 22, MUT); }
+    }
+    y += 56; t('入力した前提どおりに出た場合の目安です。', P, y, 16, MUT);
+    var H = y + 30, out = document.createElement('canvas');
+    out.width = W * dpr; out.height = H * dpr;
+    out.getContext('2d').drawImage(c, 0, 0);
+    var fname = 'border-' + stamp.replace(/[\/:]/g, '').replace(' ', '-') + '.png';
+    out.toBlob(function (blob) {
+      if (!blob) { setSync('画像を作れません'); return; }
+      (async function () {
+        try {
+          var dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null;
+          if (dl) { await dl.save({ filename: fname, data: blob }); return; }
+        } catch (e) { if (e && e.code === 'declined') return; }
+        try {
+          var file = new File([blob], fname, { type: 'image/png' });
+          if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; }
+        } catch (e) { if (e && e.name === 'AbortError') return; }
+        try {
+          var a = document.createElement('a');
+          a.href = URL.createObjectURL(blob); a.download = fname;
+          document.body.appendChild(a); a.click(); a.remove();
+        } catch (e) { setSync('保存できません'); }
+      })();
+    }, 'image/png');
+  }
+
   /* ---------- events ---------- */
   IDS.forEach(function (id) {
     $(id).addEventListener('input', function (e) {
@@ -540,7 +602,7 @@ details[open] > summary::after { content: "閉じる"; }
       var hit2 = state.saved.filter(function (s) { return s.full && s.inp.name === nm; })[0];
       if (hit2) hit2.inp = full; else state.saved.unshift({ id: newId(), inp: full, full: true });
       state.saved = state.saved.slice(0, 100);
-      touch(); renderSaved();
+      touch(); renderSaved(); saveImage();
       t.textContent = '保存済み'; setTimeout(function () { t.textContent = '保存'; }, 1500);
       return;
     }
