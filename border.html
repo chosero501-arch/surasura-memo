@@ -551,22 +551,46 @@ details[open] > summary::after { content: "閉じる"; }
     var fname = 'border-' + stamp.replace(/[\/:]/g, '').replace(' ', '-') + '.png';
     out.toBlob(function (blob) {
       if (!blob) { setSync('画像を作れません'); return; }
-      (async function () {
-        try {
-          var dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null;
-          if (dl) { await dl.save({ filename: fname, data: blob }); return; }
-        } catch (e) { if (e && e.code === 'declined') return; }
-        try {
-          var file = new File([blob], fname, { type: 'image/png' });
-          if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; }
-        } catch (e) { if (e && e.name === 'AbortError') return; }
-        try {
-          var a = document.createElement('a');
-          a.href = URL.createObjectURL(blob); a.download = fname;
-          document.body.appendChild(a); a.click(); a.remove();
-        } catch (e) { setSync('保存できません'); }
-      })();
+      showImage(blob, fname);
     }, 'image/png');
+  }
+  function showImage(blob, fname) {
+    var old = document.getElementById('imgOverlay'); if (old) old.remove();
+    var url = URL.createObjectURL(blob);
+    var ov = document.createElement('div'); ov.id = 'imgOverlay';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:12px;box-sizing:border-box';
+    var box = document.createElement('div');
+    box.style.cssText = 'background:var(--panel,#fbfcfa);color:var(--ink,#1a2125);border-radius:14px;max-width:460px;width:100%;max-height:100%;display:flex;flex-direction:column;gap:10px;padding:12px;box-sizing:border-box';
+    var msg = document.createElement('div'); msg.style.cssText = 'font-size:14px;font-weight:700'; msg.textContent = '記録を保存しました。画像はこちらです';
+    var sub = document.createElement('div'); sub.style.cssText = 'font-size:12px;opacity:.75'; sub.textContent = '画像を長押しすると「写真に追加」できます。下のボタンでも保存できます。';
+    var im = document.createElement('img'); im.src = url; im.alt = '結果の画像'; im.style.cssText = 'width:100%;min-height:0;object-fit:contain;border-radius:8px;border:1px solid rgba(0,0,0,.15);flex:1 1 auto;overflow:auto';
+    var row = document.createElement('div'); row.style.cssText = 'display:flex;gap:8px';
+    function mk(txt, fn, primary) {
+      var b = document.createElement('button'); b.type = 'button'; b.textContent = txt;
+      b.style.cssText = 'flex:1;min-height:44px;border-radius:10px;font:inherit;font-size:15px;font-weight:700;border:1px solid rgba(0,0,0,.2);cursor:pointer;' + (primary ? 'background:#b05400;color:#fff;border-color:#b05400' : 'background:transparent;color:inherit');
+      b.addEventListener('click', fn); return b;
+    }
+    var status = document.createElement('div'); status.style.cssText = 'font-size:12px;color:#b3362b;min-height:0';
+    row.appendChild(mk('保存 / 共有', async function () {
+      status.textContent = '';
+      try {
+        var dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null;
+        if (dl) { await dl.save({ filename: fname, data: blob }); return; }
+      } catch (e) { if (e && e.code === 'declined') return; }
+      try {
+        var file = new File([blob], fname, { type: 'image/png' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; }
+      } catch (e) { if (e && e.name === 'AbortError') return; }
+      try {
+        var a = document.createElement('a'); a.href = url; a.download = fname;
+        document.body.appendChild(a); a.click(); a.remove();
+      } catch (e) { status.textContent = '保存できませんでした。画像を長押しして保存してください。'; }
+    }, true));
+    row.appendChild(mk('閉じる', function () { ov.remove(); URL.revokeObjectURL(url); }));
+    box.appendChild(msg); box.appendChild(sub); box.appendChild(im); box.appendChild(row); box.appendChild(status);
+    ov.appendChild(box);
+    ov.addEventListener('click', function (e) { if (e.target === ov) { ov.remove(); URL.revokeObjectURL(url); } });
+    document.body.appendChild(ov);
   }
 
   /* ---------- events ---------- */
