@@ -183,6 +183,7 @@ details[open] > summary::after { content: "閉じる"; }
   <header class="head">
     <h1>パチンコボーダー計算</h1>
     <span class="sync" id="sync" role="status"></span>
+    <button class="btn small" type="button" id="saveRec" aria-label="この内容を保存">保存</button>
     <button class="btn small" type="button" id="reload" aria-label="再読み込み" title="再読み込み">↻</button>
   </header>
 
@@ -197,17 +198,17 @@ details[open] > summary::after { content: "閉じる"; }
   <section class="card" aria-label="実戦の結果">
     <h2>この台の実戦データ</h2>
     <div class="field">
-      <label class="name" for="R">1000円あたりの回転数</label>
+      <div><label class="name" for="rot">総回転数</label><div class="sub">これまでに回した回転数</div></div>
+      <input class="num" id="rot" type="text" inputmode="numeric" autocomplete="off" aria-label="総回転数">
+    </div>
+    <div class="field">
+      <div><label class="name" for="yen">投資(円)</label><div class="sub">使った現金の合計</div></div>
+      <input class="num" id="yen" type="text" inputmode="numeric" autocomplete="off" aria-label="投資(円)">
+    </div>
+    <div class="field">
+      <div><label class="name" for="R">1000円あたりの回転数</label><div class="sub" id="rSub">上の2つを入れると、自動で出ます</div></div>
       <input class="num" id="R" type="text" inputmode="decimal" autocomplete="off" aria-label="1000円あたりの回転数">
     </div>
-    <div class="field stack">
-      <div><div class="name">計算して入れる</div><div class="sub">回転数と、使った現金から求めます</div></div>
-      <div class="step" style="gap:6px">
-        <input class="num s" id="rot" type="text" inputmode="numeric" autocomplete="off" placeholder="回転数" aria-label="回転数">
-        <input class="num s" id="yen" type="text" inputmode="numeric" autocomplete="off" placeholder="使った円" aria-label="使った金額(円)">
-      </div>
-    </div>
-    <div class="btns"><button class="btn small" type="button" id="calcR">この2つから回転率を入れる</button></div>
     <div class="field">
       <label class="name" for="spd">1時間の回転数</label>
       <input class="num" id="spd" type="text" inputmode="numeric" autocomplete="off" aria-label="1時間の回転数">
@@ -292,7 +293,7 @@ details[open] > summary::after { content: "閉じる"; }
 
   <section class="card" aria-label="保存した機種">
     <details>
-      <summary id="savedSum">保存した機種</summary>
+      <summary id="savedSum">保存した記録</summary>
       <div class="hist" id="saved"></div>
     </details>
   </section>
@@ -413,7 +414,7 @@ details[open] > summary::after { content: "閉じる"; }
     if (!st || typeof st !== 'object') return null;
     var o = { inp: normIn(st.inp), saved: [], updated: Number(st.updated) || 0 };
     (Array.isArray(st.saved) ? st.saved : []).slice(0, 100).forEach(function (s) {
-      o.saved.push({ id: String(s.id || newId()), inp: normIn(s.inp) });
+      o.saved.push({ id: String(s.id || newId()), inp: normIn(s.inp), full: !!s.full });
     });
     return o;
   }
@@ -451,8 +452,16 @@ details[open] > summary::after { content: "閉じる"; }
     h += '</optgroup>';
     $('preset').innerHTML = h;
   }
+  function autoOn() { return fnum(state.inp.rot) > 0 && fnum(state.inp.yen) > 0; }
+  function syncR() {
+    if (!autoOn()) return;
+    state.inp.R = (Math.round(fnum(state.inp.rot) / fnum(state.inp.yen) * 10000) / 10).toString();
+  }
   function renderInputs() {
+    syncR();
     IDS.forEach(function (id) { setIfIdle($(id), state.inp[id]); });
+    $('R').readOnly = autoOn();
+    $('rSub').textContent = autoOn() ? '総回転数 ÷ 投資 から自動で出しています' : '上の2つを入れると、自動で出ます。直接入れてもかまいません';
     $('mode').value = state.inp.mode;
     $('kasi').value = state.inp.kasi;
     renderKan();
@@ -484,13 +493,13 @@ details[open] > summary::after { content: "閉じる"; }
   }
 
   function renderSaved() {
-    $('savedSum').textContent = '保存した機種(' + state.saved.length + '件)';
-    if (!state.saved.length) { $('saved').innerHTML = '<div class="h2">まだありません。「機種のスペック」で保存できます。</div>'; return; }
+    $('savedSum').textContent = '保存した記録(' + state.saved.length + '件)';
+    if (!state.saved.length) { $('saved').innerHTML = '<div class="h2">まだありません。右上の「保存」で、今の入力を残せます。</div>'; return; }
     var h = '';
     state.saved.forEach(function (s) {
       var E = s.inp.mode === 'calc' ? fnum(s.inp.g) * fnum(s.inp.chain) : fnum(s.inp.E);
       h += '<div class="hrow"><div><div class="h1">' + esc(s.inp.name || '(名前なし)') + '</div>' +
-        '<div class="h2">1/' + esc(s.inp.p || '—') + '  期待出玉 ' + (E ? fmt(E) : '—') + '玉</div></div>' +
+        '<div class="h2">1/' + esc(s.inp.p || '—') + '  期待出玉 ' + (E ? fmt(E) : '—') + '玉' + (s.full && fnum(s.inp.R) ? '  回転率 ' + esc(s.inp.R) : '') + '</div></div>' +
         '<div class="btns"><button class="btn small" type="button" data-act="load" data-sid="' + esc(s.id) + '">呼び出す</button>' +
         '<button class="btn small" type="button" data-act="del" data-sid="' + esc(s.id) + '" aria-label="削除">削除</button></div></div>';
     });
@@ -500,7 +509,11 @@ details[open] > summary::after { content: "閉じる"; }
 
   /* ---------- events ---------- */
   IDS.forEach(function (id) {
-    $(id).addEventListener('input', function (e) { state.inp[id] = e.target.value; touch(); renderResult(); });
+    $(id).addEventListener('input', function (e) {
+      state.inp[id] = e.target.value;
+      if (id === 'rot' || id === 'yen') { syncR(); $('R').readOnly = autoOn(); $('R').value = state.inp.R; $('rSub').textContent = autoOn() ? '総回転数 ÷ 投資 から自動で出しています' : '上の2つを入れると、自動で出ます。直接入れてもかまいません'; }
+      touch(); renderResult();
+    });
   });
   $('mode').addEventListener('change', function (e) { state.inp.mode = e.target.value; touch(); renderInputs(); renderResult(); });
   $('kasi').addEventListener('change', function (e) { state.inp.kasi = e.target.value; state.inp.kan = String(KAN[e.target.value][0][0]); touch(); renderInputs(); renderResult(); });
@@ -515,14 +528,20 @@ details[open] > summary::after { content: "閉じる"; }
     var t = e.target.closest ? e.target.closest('button') : null;
     if (!t) return;
     if (t.id === 'reload') { location.reload(); return; }
-    if (t.id === 'calcR') {
-      var rot = fnum(state.inp.rot), yen = fnum(state.inp.yen);
-      if (rot > 0 && yen > 0) { state.inp.R = (Math.round(rot / yen * 10000) / 10).toString(); touch(); renderInputs(); renderResult(); }
-      return;
-    }
     if (t.id === 'calcRound') {
       var rd = fnum(state.inp.rd), rbv = fnum(state.inp.rb);
       if (rd > 0 && rbv > 0) { state.inp.r1 = (Math.round(rbv / rd * 10) / 10).toString(); touch(); renderInputs(); renderResult(); }
+      return;
+    }
+    if (t.id === 'saveRec') {
+      var full = normIn(state.inp);
+      var nm = full.name || ('記録 ' + new Date().toLocaleDateString('ja-JP'));
+      full.name = nm;
+      var hit2 = state.saved.filter(function (s) { return s.full && s.inp.name === nm; })[0];
+      if (hit2) hit2.inp = full; else state.saved.unshift({ id: newId(), inp: full, full: true });
+      state.saved = state.saved.slice(0, 100);
+      touch(); renderSaved();
+      t.textContent = '保存済み'; setTimeout(function () { t.textContent = '保存'; }, 1500);
       return;
     }
     if (t.id === 'saveSpec') {
@@ -538,7 +557,7 @@ details[open] > summary::after { content: "閉じる"; }
     if (t.dataset.act === 'load') {
       var s = state.saved.filter(function (x) { return x.id === t.dataset.sid; })[0];
       if (s) {
-        ['name', 'p', 'mode', 'E', 'g', 'chain', 'r0'].forEach(function (k) { state.inp[k] = s.inp[k]; });
+        (s.full ? Object.keys(DEF) : ['name', 'p', 'mode', 'E', 'g', 'chain', 'r0']).forEach(function (k) { state.inp[k] = s.inp[k]; });
         touch(); renderAll();
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
