@@ -184,6 +184,7 @@ details[open] > summary::after { content: "閉じる"; }
 .chk small { color: var(--muted); font-size: 12px; }
 .chk:has(input:checked) { border-color: var(--led); }
 .field > div:first-child { min-width: 0; }
+[hidden] { display: none !important; }
 </style></head><body>
 
 <main class="app" id="app">
@@ -215,6 +216,10 @@ details[open] > summary::after { content: "閉じる"; }
     <div class="field">
       <div><label class="name" for="games">通常時のゲーム数</label><div class="sub">AT中・ボーナス中は数えません</div></div>
       <input class="num" id="games" type="text" inputmode="numeric" autocomplete="off" aria-label="通常時のゲーム数">
+    </div>
+    <div class="field" id="totalField" hidden>
+      <div><label class="name" for="total">総ゲーム数</label><div class="sub">通常時とST中を合わせた回転数(下段ベル用)</div></div>
+      <input class="num" id="total" type="text" inputmode="numeric" autocomplete="off" aria-label="総ゲーム数">
     </div>
     <div id="metrics"></div>
   </section>
@@ -269,6 +274,29 @@ details[open] > summary::after { content: "閉じる"; }
         'AT確率は、通常時のゲーム数に対する数字として計算しています。サイトに明記はないので、ずれる可能性があります。',
         '結果は「設定がいくつか」の断定ではなく、入力した数字から計算した可能性の目安です。'
       ]
+    },
+    {
+      id: 'kb', name: 'スマスロ 甲鉄城のカバネリ 海門決戦', payout: [97.5, 98.5, 100.8, 106.0, 111.0, 114.9],
+      metrics: [
+        { k: 'bonus', label: 'ボーナス初当り', unit: '回', w: 1, base: 'normal', rates: [254.2, 242.3, 239.6, 214.0, 203.2, 195.1] },
+        { k: 'st', label: 'ST当選', unit: '回', w: 0.5, base: 'normal', rates: [422.5, 405.9, 398.7, 357.2, 332.6, 318.5],
+          note: 'ボーナスからSTを目指す作りなので、ボーナスと重なる分を考えて、半分の重みで見ています。' },
+        { k: 'bell', label: '下段ベル', unit: '回', w: 1, base: 'total', rates: [121.1, 114.4, 112.8, 106.2, 104.2, 99.1],
+          note: '下段ベルは、通常時とST中を合わせた「総ゲーム数」で数えます。' }
+      ],
+      hints: [
+        { id: 'ge2', label: '設定2以上濃厚', ex: 'サミートロフィー銅、おみくじ小吉、無名「やっぱりこの台 普通じゃないね」', allow: [2, 3, 4, 5, 6] },
+        { id: 'ge3', label: '設定3以上濃厚', ex: 'サミートロフィー銀', allow: [3, 4, 5, 6] },
+        { id: 'ge4', label: '設定4以上濃厚', ex: '金トロフィー、中吉、美馬の出現、連打+44、獲得枚数456 OVER', allow: [4, 5, 6] },
+        { id: 'ge5', label: '設定5以上濃厚', ex: 'キリン柄トロフィー、連打+55、技術介入ボイスなし', allow: [5, 6] },
+        { id: 'eq6', label: '設定6濃厚', ex: '虹トロフィー、ST終了画面の水着、大吉、連打+66・+77、666 OVER', allow: [6] }
+      ],
+      notes: [
+        'ボーナス初当り・ST・下段ベル・機械割は、3つのサイトで数字が一致しました。',
+        'ボーナス初当りとSTは通常時のゲーム数、下段ベルは通常時とST中を合わせた総ゲーム数が分母です(1つのサイトに記載)。',
+        '偶数設定示唆・設定3,5示唆などの弱い示唆は、効き方の数字がないので入れていません。',
+        '結果は「設定がいくつか」の断定ではなく、入力した数字から計算した可能性の目安です。'
+      ]
     }
   ];
   function machineOf(id) {
@@ -279,16 +307,18 @@ details[open] > summary::after { content: "閉じる"; }
   /* rec: { games, counts:{k:n}, hints:[id] } */
   function posterior(mach, rec) {
     var N = rec.games, out = { p: [1 / 6, 1 / 6, 1 / 6, 1 / 6, 1 / 6, 1 / 6], hasData: false, error: '', used: [], hinted: false };
-    var ll = [0, 0, 0, 0, 0, 0], any = N > 0;
-    if (N > 0) {
-      for (var m = 0; m < mach.metrics.length; m++) {
-        var mt = mach.metrics[m], k = rec.counts[mt.k] || 0;
-        if (k > N) { out.error = mt.label + 'の回数が、ゲーム数より多くなっています。'; return out; }
-        if (k > 0) out.used.push(mt.label);
-        for (var s = 0; s < 6; s++) {
-          var p = 1 / mt.rates[s];
-          ll[s] += mt.w * (k * Math.log(p) + (N - k) * Math.log(1 - p));
-        }
+    var ll = [0, 0, 0, 0, 0, 0], any = false;
+    for (var m = 0; m < mach.metrics.length; m++) {
+      var mt = mach.metrics[m], k = rec.counts[mt.k] || 0;
+      var Nm = mt.base === 'total' ? (rec.total || 0) : N;
+      if (k > 0 && Nm === 0) { out.error = mt.label + 'を数えるには、' + (mt.base === 'total' ? '総ゲーム数' : '通常時のゲーム数') + 'を入れてください。'; return out; }
+      if (k > Nm) { out.error = mt.label + 'の回数が、ゲーム数より多くなっています。'; return out; }
+      if (Nm <= 0) continue;
+      any = true;
+      if (k > 0) out.used.push(mt.label);
+      for (var s = 0; s < 6; s++) {
+        var p = 1 / mt.rates[s];
+        ll[s] += mt.w * (k * Math.log(p) + (Nm - k) * Math.log(1 - p));
       }
     }
     var hs = rec.hints || [];
@@ -316,10 +346,10 @@ details[open] > summary::after { content: "閉じる"; }
   }
   function fmt(n) { return Number(n).toLocaleString('ja-JP'); }
 
-  function blankRec() { return { games: 0, counts: {}, hints: [] }; }
+  function blankRec() { return { games: 0, total: 0, counts: {}, hints: [] }; }
   function normRec(r, mach) {
     var o = blankRec(); r = r || {};
-    o.games = num(r.games);
+    o.games = num(r.games); o.total = num(r.total);
     mach.metrics.forEach(function (m) { o.counts[m.k] = num(r.counts && r.counts[m.k]); });
     o.hints = (Array.isArray(r.hints) ? r.hints : []).filter(function (id) { return mach.hints.some(function (h) { return h.id === id; }); });
     return o;
@@ -364,7 +394,8 @@ details[open] > summary::after { content: "閉じる"; }
       var c = r.counts[mt.k] || 0;
       $('v_' + mt.k).textContent = c;
       var range = '設定1〜6: 1/' + mt.rates[0].toFixed(0) + '〜1/' + mt.rates[5].toFixed(0);
-      $('r_' + mt.k).textContent = c && r.games ? '1/' + (r.games / c).toFixed(1) + '(' + range + ')' : range;
+      var base = mt.base === 'total' ? r.total : r.games;
+      $('r_' + mt.k).textContent = c && base ? '1/' + (base / c).toFixed(1) + '(' + range + ')' : range;
     });
   }
   function renderHints() {
@@ -379,7 +410,7 @@ details[open] > summary::after { content: "閉じる"; }
     for (var i = 1; i < 6; i++) if (res.p[i] > res.p[best]) best = i;
     $('rtitle').textContent = '設定の可能性(' + m.name + ')';
     if (res.error) $('verdict').innerHTML = '<span class="warn">' + res.error + '</span>';
-    else if (!res.hasData) $('verdict').textContent = '通常時のゲーム数を入れるか、設定示唆にチェックを入れると、計算します。';
+    else if (!res.hasData) $('verdict').textContent = 'ゲーム数を入れるか、設定示唆にチェックを入れると、計算します。';
     else $('verdict').innerHTML = '設定<b>' + (best + 1) + '</b>が最有力(' + (res.p[best] * 100).toFixed(1) + '%)';
     var h = '';
     for (var s = 0; s < 6; s++) {
@@ -393,6 +424,7 @@ details[open] > summary::after { content: "閉じる"; }
     if (res.hasData && !res.error) {
       var parts = [];
       if (r.games) parts.push('通常時 ' + fmt(r.games) + 'G');
+      if (r.total) parts.push('総 ' + fmt(r.total) + 'G');
       if (res.used.length) parts.push(res.used.join('・') + 'の回数');
       if (res.hinted) parts.push('設定示唆');
       t = '計算に使ったもの: ' + parts.join('、') + '。ゲーム数が少ないうちは、結果が大きく動きます。';
@@ -414,8 +446,13 @@ details[open] > summary::after { content: "閉じる"; }
     m.notes.forEach(function (t) { n += '<div>' + t + '</div>'; });
     $('specNotes').innerHTML = n;
   }
+  function renderTotal() {
+    var has = mach().metrics.some(function (m) { return m.base === 'total'; });
+    $('totalField').hidden = !has;
+    setIfIdle($('total'), rec().total ? fmt(rec().total) : '');
+  }
   function renderAll() {
-    renderMachineSelect();
+    renderMachineSelect(); renderTotal();
     setIfIdle($('games'), rec().games ? fmt(rec().games) : '');
     renderMetrics(); renderHints(); renderResult(); renderSpec();
   }
@@ -423,6 +460,8 @@ details[open] > summary::after { content: "閉じる"; }
   /* ---------- events ---------- */
   $('mach').addEventListener('change', function (e) { state.mach = e.target.value; touch(); renderAll(); });
   $('games').addEventListener('input', function (e) { rec().games = num(e.target.value); touch(); renderMetrics(); renderResult(); });
+  $('total').addEventListener('input', function (e) { rec().total = num(e.target.value); touch(); renderMetrics(); renderResult(); });
+  $('total').addEventListener('blur', function () { $('total').value = rec().total ? fmt(rec().total) : ''; });
   $('games').addEventListener('blur', function () { $('games').value = rec().games ? fmt(rec().games) : ''; });
   $('hints').addEventListener('change', function (e) {
     var id = e.target.dataset && e.target.dataset.hint;
