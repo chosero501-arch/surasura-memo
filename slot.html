@@ -191,6 +191,7 @@ details[open] > summary::after { content: "閉じる"; }
   <header class="head">
     <h1>スロット設定判別</h1>
     <span class="sync" id="sync" role="status"></span>
+    <button class="btn small" type="button" id="saveRec" aria-label="この内容を保存(記録と画像)">保存</button>
     <button class="btn small" type="button" id="reload" aria-label="再読み込み" title="再読み込み">↻</button>
   </header>
 
@@ -236,6 +237,13 @@ details[open] > summary::after { content: "閉じる"; }
 
   <section class="card">
     <div class="btns"><button class="btn small danger" type="button" id="reset">この機種の数字をゼロに戻す</button></div>
+  </section>
+
+  <section class="card" aria-label="保存した記録">
+    <details>
+      <summary id="savedSum">保存した記録</summary>
+      <div class="hist" id="saved"></div>
+    </details>
   </section>
 
   <section class="card">
@@ -556,8 +564,13 @@ details[open] > summary::after { content: "閉じる"; }
   }
   function normalize(st) {
     if (!st || typeof st !== 'object') return null;
-    var o = { mach: machineOf(st.mach).id, by: {}, updated: Number(st.updated) || 0 };
+    var o = { mach: machineOf(st.mach).id, by: {}, saved: [], updated: Number(st.updated) || 0 };
     MACHINES.forEach(function (m) { o.by[m.id] = normRec(st.by && st.by[m.id], m); });
+    (Array.isArray(st.saved) ? st.saved : []).slice(0, 100).forEach(function (s) {
+      if (!s || typeof s !== 'object') return;
+      var m = machineOf(s.mach);
+      o.saved.push({ id: String(s.id || (Date.now() + Math.random())), mach: m.id, label: String(s.label || '').slice(0, 60), stamp: String(s.stamp || '').slice(0, 20), top: String(s.top || '').slice(0, 40), rec: normRec(s.rec, m) });
+    });
     return o;
   }
   var state = normalize({ mach: MACHINES[0].id });
@@ -655,10 +668,128 @@ details[open] > summary::after { content: "閉じる"; }
     $('rateField').hidden = r.games > 0;
   }
   function renderAll() {
-    renderMachineSelect(); renderTotal();
+    renderMachineSelect(); renderTotal(); renderSaved();
     setIfIdle($('games'), rec().games ? fmt(rec().games) : '');
     renderMetrics(); renderHints(); renderResult(); renderSpec();
   }
+
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function stampNow() {
+    var d = new Date(), pad = function (v) { return (v < 10 ? '0' : '') + v; };
+    return d.getFullYear() + '/' + pad(d.getMonth() + 1) + '/' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+  function topText(m, r) {
+    var res = posterior(m, r), best = 0;
+    for (var i = 1; i < 6; i++) if (res.p[i] > res.p[best]) best = i;
+    return res.hasData && !res.error ? '設定' + (best + 1) + ' ' + (res.p[best] * 100).toFixed(0) + '%' : '';
+  }
+  function renderSaved() {
+    $('savedSum').textContent = '保存した記録(' + state.saved.length + '件)';
+    if (!state.saved.length) { $('saved').innerHTML = '<div class="h2">まだありません。右上の「保存」で、今の入力を残せます。</div>'; return; }
+    var h = '';
+    state.saved.forEach(function (s) {
+      h += '<div class="hrow"><div><div class="h1">' + esc(machineOf(s.mach).name) + '</div><div class="h2">' + esc(s.stamp) + (s.label ? '  ' + esc(s.label) : '') + (s.top ? '  ' + esc(s.top) : '') + '</div></div>' +
+        '<div class="btns"><button class="btn small" type="button" data-act="load" data-sid="' + esc(s.id) + '">呼び出す</button>' +
+        '<button class="btn small" type="button" data-act="del" data-sid="' + esc(s.id) + '" aria-label="削除">削除</button></div></div>';
+    });
+    $('saved').innerHTML = h;
+  }
+  function saveImage() {
+    var m = mach(), r = rec(), res = posterior(m, r), best = 0;
+    for (var i = 1; i < 6; i++) if (res.p[i] > res.p[best]) best = i;
+    var W = 760, P = 36, y = 0, dpr = 2, c = document.createElement('canvas');
+    c.width = W * dpr; c.height = 1600 * dpr;
+    var g = c.getContext('2d'); g.scale(dpr, dpr);
+    var F = '"Hiragino Sans","Yu Gothic UI","Noto Sans JP","BIZ UDPGothic",sans-serif';
+    g.fillStyle = '#fbfcfa'; g.fillRect(0, 0, W, 1600);
+    function t(txt, x, yy, size, col, bold, align) { g.font = (bold ? '700 ' : '400 ') + size + 'px ' + F; g.fillStyle = col; g.textAlign = align || 'left'; g.fillText(txt, x, yy); }
+    var INK = '#1a2125', MUT = '#55616a', LED = '#b05400', LINE = '#c9cfc9';
+    var stamp = stampNow();
+    y = 56; t('スロット設定判別', P, y, 26, INK, true);
+    y += 36; t(stamp, P, y, 20, MUT);
+    y += 40; t(m.name, P, y, 24, INK, true);
+    y += 28; g.fillStyle = LINE; g.fillRect(P, y, W - 2 * P, 2);
+    y += 52;
+    if (res.error) t(res.error, P, y, 22, '#b3362b', true);
+    else if (!res.hasData) t('ゲーム数または設定示唆が未入力です', P, y, 22, MUT);
+    else t('設定' + (best + 1) + 'が最有力(' + (res.p[best] * 100).toFixed(1) + '%)', P, y, 34, LED, true);
+    y += 20;
+    var ab = absentOf(m);
+    for (var s = 0; s < 6; s++) {
+      y += 40;
+      var pct = res.p[s] * 100, top = res.hasData && s === best, gone = ab.indexOf(s) >= 0;
+      t('設定' + (s + 1), P, y, 20, top ? LED : MUT, top);
+      g.fillStyle = '#eff2ee'; g.fillRect(P + 90, y - 18, 480, 18);
+      if (!gone) { g.fillStyle = top ? LED : '#c3cbc7'; g.fillRect(P + 90, y - 18, Math.max(2, 480 * pct / 100), 18); }
+      t(gone ? 'なし' : pct.toFixed(1) + '%', W - P, y, 20, top ? LED : INK, top, 'right');
+    }
+    if (res.hasData && !res.error) {
+      y += 46; t('設定4以上 ' + ((res.p[3] + res.p[4] + res.p[5]) * 100).toFixed(0) + '%   設定5以上 ' + ((res.p[4] + res.p[5]) * 100).toFixed(0) + '%   設定6 ' + (res.p[5] * 100).toFixed(0) + '%', P, y, 20, INK);
+    }
+    y += 24; g.fillStyle = LINE; g.fillRect(P, y, W - 2 * P, 2);
+    y += 46; t('カウンター', P, y, 20, MUT, true);
+    if (r.total) { y += 44; t('総ゲーム数  ' + fmt(r.total) + 'G', P, y, 26, INK, true); }
+    if (res.N) { y += 40; t('通常時  ' + fmt(res.N) + 'G' + (res.est ? '(総ゲーム数の' + (r.rate || 85) + '%と仮定)' : ''), P, y, 24, INK); }
+    m.metrics.forEach(function (mt) {
+      var cnt = r.counts[mt.k] || 0, base = mt.base === 'total' ? r.total : res.N;
+      y += 40; t(mt.label + '  ' + cnt + '回  ' + (cnt && base ? '1/' + (base / cnt).toFixed(1) : '1/—'), P, y, 24, INK);
+    });
+    var hs = m.hints.filter(function (h) { return r.hints.indexOf(h.id) >= 0; });
+    if (hs.length) {
+      y += 24; g.fillStyle = LINE; g.fillRect(P, y, W - 2 * P, 2);
+      y += 46; t('出た設定示唆', P, y, 20, MUT, true);
+      hs.forEach(function (h) { y += 40; t(h.label, P, y, 24, INK, true); });
+    }
+    y += 52; t('入力した数字から計算した可能性の目安です。', P, y, 16, MUT);
+    var H = y + 30, out = document.createElement('canvas');
+    out.width = W * dpr; out.height = H * dpr;
+    out.getContext('2d').drawImage(c, 0, 0);
+    var fname = 'slot-' + stamp.replace(/[\/:]/g, '').replace(' ', '-') + '.png';
+    out.toBlob(function (blob) {
+      if (!blob) { setSync('画像を作れません'); return; }
+      showImage(blob, fname);
+    }, 'image/png');
+  }
+  function showImage(blob, fname) {
+    var old = document.getElementById('imgOverlay'); if (old) old.remove();
+    var url = URL.createObjectURL(blob);
+    var ov = document.createElement('div'); ov.id = 'imgOverlay';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:12px;box-sizing:border-box';
+    var box = document.createElement('div');
+    box.style.cssText = 'background:var(--panel,#fbfcfa);color:var(--ink,#1a2125);border-radius:14px;max-width:460px;width:100%;max-height:100%;display:flex;flex-direction:column;gap:10px;padding:12px;box-sizing:border-box';
+    var msg = document.createElement('div'); msg.style.cssText = 'font-size:14px;font-weight:700'; msg.textContent = '記録を保存しました。画像はこちらです';
+    var sub = document.createElement('div'); sub.style.cssText = 'font-size:12px;opacity:.75'; sub.textContent = '画像を長押しすると「写真に追加」できます。下のボタンでも保存できます。';
+    var im = document.createElement('img'); im.src = url; im.alt = '結果の画像'; im.style.cssText = 'width:100%;min-height:0;object-fit:contain;border-radius:8px;border:1px solid rgba(0,0,0,.15);flex:1 1 auto;overflow:auto';
+    var row = document.createElement('div'); row.style.cssText = 'display:flex;gap:8px';
+    function mk(txt, fn, primary) {
+      var b = document.createElement('button'); b.type = 'button'; b.textContent = txt;
+      b.style.cssText = 'flex:1;min-height:44px;border-radius:10px;font:inherit;font-size:15px;font-weight:700;border:1px solid rgba(0,0,0,.2);cursor:pointer;' + (primary ? 'background:#b05400;color:#fff;border-color:#b05400' : 'background:transparent;color:inherit');
+      b.addEventListener('click', fn); return b;
+    }
+    var status = document.createElement('div'); status.style.cssText = 'font-size:12px;color:#b3362b;min-height:0';
+    row.appendChild(mk('保存 / 共有', async function () {
+      status.textContent = '';
+      try {
+        var dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null;
+        if (dl) { await dl.save({ filename: fname, data: blob }); return; }
+      } catch (e) { if (e && e.code === 'declined') return; }
+      try {
+        var file = new File([blob], fname, { type: 'image/png' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; }
+      } catch (e) { if (e && e.name === 'AbortError') return; }
+      try {
+        var a = document.createElement('a'); a.href = url; a.download = fname;
+        document.body.appendChild(a); a.click(); a.remove();
+      } catch (e) { status.textContent = '保存できませんでした。画像を長押しして保存してください。'; }
+    }, true));
+    row.appendChild(mk('閉じる', function () { ov.remove(); URL.revokeObjectURL(url); }));
+    box.appendChild(msg); box.appendChild(sub); box.appendChild(im); box.appendChild(row); box.appendChild(status);
+    ov.appendChild(box);
+    ov.addEventListener('click', function (e) { if (e.target === ov) { ov.remove(); URL.revokeObjectURL(url); } });
+    document.body.appendChild(ov);
+  }
+
 
   /* ---------- events ---------- */
   $('mach').addEventListener('change', function (e) { state.mach = e.target.value; touch(); renderAll(); });
@@ -684,6 +815,23 @@ details[open] > summary::after { content: "閉じる"; }
       r.counts[k] = Math.max(0, (r.counts[k] || 0) + (t.dataset.act === 'inc' ? 1 : -1));
       touch(); renderMetrics(); renderResult(); return;
     }
+    if (t.id === 'saveRec') {
+      var snap = clone(rec());
+      state.saved.unshift({ id: String(Date.now()) + Math.floor(Math.random() * 1000), mach: state.mach, label: '', stamp: stampNow(), top: topText(mach(), snap), rec: snap });
+      state.saved = state.saved.slice(0, 100);
+      touch(); renderSaved(); saveImage();
+      t.textContent = '保存済み'; setTimeout(function () { t.textContent = '保存'; }, 1500);
+      return;
+    }
+    if (t.dataset.act === 'load') {
+      var sv = state.saved.filter(function (x) { return x.id === t.dataset.sid; })[0];
+      if (sv) { state.mach = sv.mach; state.by[sv.mach] = normRec(clone(sv.rec), machineOf(sv.mach)); touch(); renderAll(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+      return;
+    }
+    if (t.dataset.act === 'del') {
+      state.saved = state.saved.filter(function (x) { return x.id !== t.dataset.sid; });
+      touch(); renderSaved(); return;
+    }
     if (t.id === 'reset') {
       if (t.dataset.confirm !== '1') {
         t.dataset.confirm = '1'; t.textContent = 'もう一度押すと実行します';
@@ -704,7 +852,7 @@ details[open] > summary::after { content: "閉じる"; }
     flushing = true; dirty = false;
     var retry = false;
     try {
-      await col.doc('slot').set({ v: 1, updated: state.updated, mach: state.mach, by: state.by });
+      await col.doc('slot').set({ v: 1, updated: state.updated, mach: state.mach, by: state.by, saved: state.saved });
       setSync('');
     } catch (e) {
       setSync('同期できません');
